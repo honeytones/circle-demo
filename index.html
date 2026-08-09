@@ -303,18 +303,34 @@ h2{font-family:var(--display);font-size:22px;font-weight:800;line-height:1.15}
    swapping demo for live touches nothing else.
    ============================================================ */
 
+/* Same app, different circle. Rotating savings is global — ajo, esusu,
+   chama, kitty, hui, tanda, tontine — so the demo speaks more than one
+   language. Pick with a URL parameter: ?v=in for the kitty version. */
+const PRESETS = {
+  ng: {
+    kicker: 'Ajo, made safe',
+    name: 'Market Women Circle',
+    inviter: 'Mama Nkechi',
+    members: ['Ada','Bola','Chi','Dayo','Emeka'],
+    period: 'week',
+  },
+  in: {
+    kicker: 'Kitty, made safe',
+    name: 'Sector 12 Kitty Circle',
+    inviter: 'Sharma Aunty',
+    members: ['Priya','Anjali','Deepa','Meera','Sunita'],
+    period: 'month',
+  },
+};
+const PRESET = PRESETS[new URLSearchParams(location.search).get('v')] || PRESETS.ng;
+document.querySelector('header .kicker').textContent = PRESET.kicker;
+
 function DemoChain(){
-  const members = [
-    {name:'Ada',  you:true },
-    {name:'Bola', you:false},
-    {name:'Chi',  you:false},
-    {name:'Dayo', you:false},
-    {name:'Emeka',you:false},
-  ];
+  const members = PRESET.members.map((name,i)=>({name, you:i===0}));
   const state = {
     joined:false,
     contribution:10,
-    period:'week',
+    period:PRESET.period,
     size:members.length,
     round:0,                    // current round index
     // paid[r][m] => true/false/null(pending)
@@ -344,7 +360,7 @@ function DemoChain(){
     demo:true,
     yourIndex,
     getCircle(){ return {
-      name:'Market Women Circle',
+      name:PRESET.name,
       members: members.map(m=>m.name),
       you: yourIndex,
       contribution: state.contribution,
@@ -395,7 +411,7 @@ function DemoChain(){
       // everyone but you and Dayo pays; deadline passes; settle short
       state.paid[state.round] = state.paid[state.round].map((p,i)=>{
         if(i===yourIndex) return p===true;
-        if(members[i].name==='Dayo') return false;
+        if(i===3) return false;
         return true;
       });
       if(state.round===yourIndex && state.paid[state.round][yourIndex]){
@@ -733,7 +749,7 @@ function screenJoin(c){
   main.innerHTML = `
   <section class="screen active">
     <h2>You're invited</h2>
-    <p class="sub">Mama Nkechi added you to this circle. Look over the terms, then join.</p>
+    <p class="sub">${PRESET.inviter} added you to this circle. Look over the terms, then join.</p>
     <div class="card">
       <div class="row"><span class="k">People</span><span class="v">${c.size} members</span></div>
       <div class="row"><span class="k">Everyone puts in</span><span class="v money">${fmt$(c.contribution)} / ${c.period}</span></div>
@@ -1016,8 +1032,8 @@ function demoPanel(){
     <div class="lab">Demo controls</div>
     <div class="btns">
       <button id="d-others">Everyone else pays</button>
-      <button id="d-miss">Dayo misses, ${chain.getCircle().period} ends</button>
-      <button id="d-lost">Dayo loses phone</button>
+      <button id="d-miss">${chain.getCircle().members[3]} misses, ${chain.getCircle().period} ends</button>
+      <button id="d-lost">${chain.getCircle().members[3]} loses phone</button>
       <button id="d-reset">Restart demo</button>
     </div>
   </div>`;
