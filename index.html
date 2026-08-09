@@ -1,0 +1,1055 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
+<title>Circle — save together</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Bricolage+Grotesque:opsz,wght@12..96,400;12..96,600;12..96,800&display=swap" rel="stylesheet">
+<script defer src="https://cdn.jsdelivr.net/npm/ethers@6.13.4/dist/ethers.umd.min.js"></script>
+<style>
+/* ============================================================
+   Adire indigo system — deep cloth blues, calico white,
+   marigold reserved for the pot alone.
+   ============================================================ */
+:root{
+  --frame:#0F1B4D;          /* outside the phone card */
+  --card:#ffffff;           /* card surfaces */
+  --on-indigo:#FAF6EE;      /* text on indigo surfaces (fixed both themes) */
+  --stamp-paid:#1B2A6B;
+  --indigo-950:#0F1B4D;
+  --indigo-800:#1B2A6B;
+  --indigo-600:#31418F;
+  --indigo-100:#DDE2F4;
+  --calico:#FAF6EE;
+  --calico-dim:#EFE9DC;
+  --ink:#141726;
+  --ink-soft:#4A4F63;
+  --pot-gold:#E8A93D;
+  --pot-gold-deep:#B97F1E;
+  --ok:#2E7D4F;
+  --miss:#B3432B;
+  --radius:14px;
+  --display:'Bricolage Grotesque', system-ui, sans-serif;
+  --body:system-ui, -apple-system, 'Segoe UI', Roboto, sans-serif;
+}
+/* Dark: same cloth, dyed deeper. Layout, stamp card, and marigold pot
+   moments identical — this is the variant that sits comfortably inside
+   the Zano wallet's dark dApp browser. */
+[data-theme="dark"]{
+  --frame:#070D24;
+  --calico:#101B47;         /* app background */
+  --calico-dim:#28346E;     /* hairlines & borders */
+  --card:#182457;
+  --ink:#EDEFF8;
+  --ink-soft:#A6AECB;
+  --indigo-100:#3D4A8F;     /* current-row highlight & pending stamps */
+  --stamp-paid:#8FA1EC;
+}
+[data-theme="dark"] .stamp.paid{color:#0F1B4D}
+[data-theme="dark"] .stamprow.current{background:#22306B}
+[data-theme="dark"] .bigstamp{background:var(--stamp-paid);color:#0F1B4D}
+[data-theme="dark"] .bigstamp.gold{background:radial-gradient(circle at 32% 30%, #F6C566, var(--pot-gold) 55%, var(--pot-gold-deep));color:#3A2705}
+*{box-sizing:border-box;margin:0;padding:0}
+html{-webkit-text-size-adjust:100%}
+body{
+  font-family:var(--body);
+  background:var(--frame);
+  color:var(--ink);
+  min-height:100dvh;
+  display:flex;
+  justify-content:center;
+}
+/* Phone frame: fills small screens, centers politely on desktop */
+#app{
+  width:100%;
+  max-width:420px;
+  min-height:100dvh;
+  background:var(--calico);
+  display:flex;
+  flex-direction:column;
+  position:relative;
+  overflow:hidden;
+}
+button{font-family:inherit;cursor:pointer;border:none}
+button:focus-visible,a:focus-visible{outline:3px solid var(--pot-gold);outline-offset:2px}
+@media (prefers-reduced-motion: reduce){
+  *,*::before,*::after{animation:none!important;transition:none!important}
+}
+
+/* ---------- header ---------- */
+header{
+  background:var(--indigo-800);
+  color:var(--on-indigo);
+  padding:calc(env(safe-area-inset-top, 0px) + 18px) 20px 16px;
+}
+header{display:flex;align-items:flex-start;justify-content:space-between;gap:10px}
+#theme-toggle{
+  background:rgba(255,255,255,.12);color:var(--on-indigo);
+  border-radius:50%;width:38px;height:38px;font-size:17px;
+  display:grid;place-items:center;flex:none;margin-top:2px;
+}
+header .kicker{
+  font-size:12px;letter-spacing:.14em;text-transform:uppercase;
+  color:var(--indigo-100);font-weight:600;
+}
+header h1{
+  font-family:var(--display);
+  font-size:26px;font-weight:800;line-height:1.1;
+  margin-top:2px;
+}
+/* resist-dot border: the adire mark, drawn in CSS */
+.adire-rule{
+  height:8px;
+  background-image:radial-gradient(circle 2.5px, #FAF6EE 2.4px, transparent 2.6px);
+  background-size:14px 8px;
+  background-position:center;
+  background-color:var(--indigo-800);
+}
+
+/* ---------- main ---------- */
+main{flex:1;padding:20px 20px 120px;overflow-y:auto}
+.screen{display:none}
+.screen.active{display:block;animation:rise .28s ease}
+@keyframes rise{from{opacity:0;transform:translateY(8px)}to{opacity:1;transform:none}}
+
+h2{font-family:var(--display);font-size:22px;font-weight:800;line-height:1.15}
+.sub{color:var(--ink-soft);font-size:15px;line-height:1.45;margin-top:6px}
+
+/* ---------- cards ---------- */
+.card{
+  background:var(--card);
+  border:1.5px solid var(--calico-dim);
+  border-radius:var(--radius);
+  padding:16px;
+  margin-top:16px;
+}
+.row{display:flex;justify-content:space-between;align-items:baseline;padding:9px 0;border-bottom:1px dashed var(--calico-dim)}
+.row:last-child{border-bottom:none}
+.row .k{color:var(--ink-soft);font-size:14px}
+.row .v{font-weight:700;font-size:16px;font-variant-numeric:tabular-nums}
+.money{font-variant-numeric:tabular-nums;font-weight:800}
+.money small{font-size:.55em;font-weight:600;color:var(--ink-soft);margin-left:3px;letter-spacing:.04em}
+
+/* ---------- the stamp card (signature element) ---------- */
+.stampcard{
+  background:var(--card);
+  border:1.5px solid var(--calico-dim);
+  border-radius:var(--radius);
+  padding:16px 14px;
+  margin-top:16px;
+}
+.stampcard .title{
+  display:flex;justify-content:space-between;align-items:center;margin-bottom:12px;
+}
+.stampcard .title .t{font-family:var(--display);font-weight:800;font-size:16px}
+.stampcard .title .wk{font-size:13px;color:var(--ink-soft);font-weight:600}
+.stamprow{
+  display:grid;
+  grid-template-columns:64px 1fr;
+  align-items:center;
+  gap:10px;
+  padding:7px 6px;
+  border-radius:10px;
+}
+.stamprow.current{background:var(--indigo-100)}
+.stamprow.past{opacity:.55}
+.stamprow .who{font-size:13.5px;font-weight:700;line-height:1.2}
+.stamprow .who .pos{display:block;font-size:11px;color:var(--ink-soft);font-weight:600}
+.stamps{display:flex;gap:8px;flex-wrap:wrap}
+.stamp{
+  width:30px;height:30px;border-radius:50%;
+  border:2px solid var(--indigo-100);
+  display:grid;place-items:center;
+  font-size:15px;color:#fff;
+  background:transparent;
+  transition:transform .15s ease;
+}
+.stamp.paid{background:var(--stamp-paid);border-color:var(--stamp-paid)}
+.stamp.missed{background:transparent;border-color:var(--miss);color:var(--miss)}
+.stamp.pending{border-style:dashed}
+.stamp.you{box-shadow:0 0 0 2.5px var(--pot-gold)}
+.potcoin{
+  width:30px;height:30px;border-radius:50%;
+  background:radial-gradient(circle at 32% 30%, #F6C566, var(--pot-gold) 55%, var(--pot-gold-deep));
+  display:grid;place-items:center;
+  font-size:14px;
+  box-shadow:0 1px 4px rgba(185,127,30,.45);
+}
+.legend{display:flex;gap:14px;margin-top:12px;font-size:12px;color:var(--ink-soft);flex-wrap:wrap}
+.legend span{display:inline-flex;align-items:center;gap:5px}
+.legend i{width:13px;height:13px;border-radius:50%;display:inline-block}
+.legend .l-paid{background:var(--stamp-paid)}
+.legend .l-miss{border:2px solid var(--miss)}
+.legend .l-pot{background:var(--pot-gold)}
+
+/* ---------- status strip ---------- */
+.status{
+  margin-top:16px;
+  background:var(--indigo-800);
+  color:var(--on-indigo);
+  border-radius:var(--radius);
+  padding:16px;
+}
+.status .big{font-family:var(--display);font-size:19px;font-weight:800;line-height:1.25}
+.status .small{margin-top:6px;font-size:13.5px;color:var(--indigo-100)}
+.status.gold{background:linear-gradient(135deg, var(--pot-gold), var(--pot-gold-deep));color:#3A2705}
+.status.gold .small{color:#5C400E}
+
+/* ---------- big numbers ---------- */
+.hero-amount{
+  font-family:var(--display);
+  font-size:52px;font-weight:800;
+  font-variant-numeric:tabular-nums;
+  line-height:1;
+  margin-top:18px;
+}
+.hero-amount small{font-size:18px;color:var(--ink-soft);font-weight:600;margin-left:6px}
+
+/* ---------- action bar (thumb zone) ---------- */
+.actionbar{
+  position:absolute;left:0;right:0;bottom:0;
+  padding:14px 20px calc(env(safe-area-inset-bottom, 0px) + 16px);
+  background:linear-gradient(to top, var(--calico) 70%, transparent);
+}
+.btn{
+  width:100%;
+  min-height:56px;
+  border-radius:16px;
+  font-size:18px;font-weight:800;
+  font-family:var(--display);
+  display:flex;align-items:center;justify-content:center;gap:8px;
+}
+.btn-primary{background:var(--indigo-800);color:var(--on-indigo)}
+.btn-primary:active{transform:scale(.985)}
+.btn-gold{background:linear-gradient(135deg,var(--pot-gold),var(--pot-gold-deep));color:#2E1F04}
+.btn-quiet{background:transparent;color:var(--indigo-800);font-size:15px;min-height:44px;font-weight:700}
+.btn[disabled]{opacity:.45;cursor:default}
+
+/* ---------- paid / celebration states ---------- */
+.bigstamp{
+  width:110px;height:110px;border-radius:50%;
+  background:var(--indigo-800);
+  color:var(--on-indigo);
+  display:grid;place-items:center;
+  font-size:54px;
+  margin:26px auto 0;
+  animation:stampin .35s cubic-bezier(.2,1.4,.4,1);
+}
+@keyframes stampin{from{transform:scale(1.6);opacity:0}to{transform:scale(1);opacity:1}}
+.bigstamp.gold{background:radial-gradient(circle at 32% 30%, #F6C566, var(--pot-gold) 55%, var(--pot-gold-deep));color:#3A2705}
+.center{text-align:center}
+
+/* ---------- demo controls ---------- */
+.demo-ribbon{
+  position:absolute;top:10px;right:-34px;z-index:5;
+  transform:rotate(38deg);
+  background:var(--pot-gold);color:#3A2705;
+  font-size:11px;font-weight:800;letter-spacing:.1em;
+  padding:4px 40px;pointer-events:none;
+}
+.demo-panel{
+  margin-top:22px;
+  border-top:2px dashed var(--calico-dim);
+  padding-top:14px;
+}
+.demo-panel .lab{font-size:11px;letter-spacing:.12em;text-transform:uppercase;color:var(--ink-soft);font-weight:700;margin-bottom:8px}
+.demo-panel .btns{display:flex;gap:8px;flex-wrap:wrap}
+.demo-panel button{
+  background:var(--card);border:1.5px solid var(--calico-dim);
+  border-radius:10px;padding:9px 12px;font-size:13px;font-weight:700;color:var(--ink-soft);
+}
+</style>
+</head>
+<body>
+<div id="app">
+  <div class="demo-ribbon">DEMO</div>
+  <header>
+    <div>
+      <div class="kicker">Ajo, made safe</div>
+      <h1 id="hdr-title">Market Women Circle</h1>
+    </div>
+    <button id="theme-toggle" aria-label="Switch light or dark look">☾</button>
+  </header>
+  <div class="adire-rule"></div>
+  <main id="main"></main>
+  <div class="actionbar" id="actionbar"></div>
+</div>
+
+<script>
+/* ---- theme: dark or light, your choice, remembered ---- */
+(function(){
+  const saved = localStorage.getItem('circle-theme');
+  const prefersDark = matchMedia && matchMedia('(prefers-color-scheme: dark)').matches;
+  const theme = saved || (prefersDark ? 'dark' : 'light');
+  document.documentElement.setAttribute('data-theme', theme);
+  const btn = document.getElementById('theme-toggle');
+  const face = t => t === 'dark' ? '\u2600' : '\u263e';
+  btn.textContent = face(theme);
+  btn.onclick = () => {
+    const next = document.documentElement.getAttribute('data-theme') === 'dark' ? 'light' : 'dark';
+    document.documentElement.setAttribute('data-theme', next);
+    localStorage.setItem('circle-theme', next);
+    btn.textContent = face(next);
+  };
+})();
+
+/* ============================================================
+   Chain adapter.
+   DemoChain simulates the RoscaCircle contract so the whole
+   lifecycle is clickable today. LiveChain (stub below) is where
+   the real wiring goes: build calldata -> digest -> wallet sign
+   -> POST /relay. The screens only talk to this interface, so
+   swapping demo for live touches nothing else.
+   ============================================================ */
+
+function DemoChain(){
+  const members = [
+    {name:'Ada',  you:true },
+    {name:'Bola', you:false},
+    {name:'Chi',  you:false},
+    {name:'Dayo', you:false},
+    {name:'Emeka',you:false},
+  ];
+  const state = {
+    joined:false,
+    contribution:10,
+    period:'week',
+    size:members.length,
+    round:0,                    // current round index
+    // paid[r][m] => true/false/null(pending)
+    paid: members.map(()=>members.map(()=>null)),
+    completed:false,
+    justGotPot:false,           // set when a settle credits YOUR pot
+    lastPot:0,                  // what actually landed (full or short)
+    balance:25,                 // fUSD in your account
+    guardians:null,             // null = protection not set up yet
+    recovery:null,              // pending recovery of a FRIEND's account
+  };
+  // pre-simulate: some others already paid this week
+  state.paid[0] = [null,true,true,null,null];
+
+  const yourIndex = 0;
+
+  function allPaid(r){ return state.paid[r].every(p=>p===true); }
+  function settle(){
+    // nulls become misses, advance round
+    state.paid[state.round] = state.paid[state.round].map(p=>p===true?true:false);
+    state.round++;
+    if(state.round>=state.size){ state.completed=true; return; }
+    state.paid[state.round] = members.map(()=>null);
+  }
+
+  return {
+    demo:true,
+    yourIndex,
+    getCircle(){ return {
+      name:'Market Women Circle',
+      members: members.map(m=>m.name),
+      you: yourIndex,
+      contribution: state.contribution,
+      period: state.period,
+      size: state.size,
+      round: state.round,
+      paid: state.paid,
+      joined: state.joined,
+      completed: state.completed,
+      pot: state.contribution*state.size,
+      balance: state.balance,
+      recipient: state.round<state.size ? state.round : null,
+      daysLeft: 3,
+      justGotPot: state.justGotPot,
+      lastPot: state.lastPot,
+    };},
+    ackPot(){ state.justGotPot = false; },
+    async join(){ state.joined=true; },
+    async contribute(){
+      /* LIVE: batch [approve(circle,amount), contribute()] on the
+         member's MinimalAccount -> sign digest -> POST /relay */
+      if(state.balance < state.contribution) return; // real contract would revert
+      state.paid[state.round][yourIndex]=true;
+      state.balance -= state.contribution;
+      // demo nicety: if everyone else already paid, auto-settle like the contract
+      if(allPaid(state.round)){
+        if(state.round===yourIndex){
+          state.balance += state.contribution*state.size;
+          state.lastPot = state.contribution*state.size;
+          state.justGotPot = true;
+        }
+        settle();
+      }
+    },
+    /* demo-only controls */
+    _othersPay(){
+      state.paid[state.round] = state.paid[state.round].map((p,i)=> i===yourIndex? p : true);
+      if(allPaid(state.round)){
+        if(state.round===yourIndex){
+          state.balance += state.contribution*state.size;
+          state.lastPot = state.contribution*state.size;
+          state.justGotPot = true;
+        }
+        settle();
+      }
+    },
+    _someoneMisses(){
+      // everyone but you and Dayo pays; deadline passes; settle short
+      state.paid[state.round] = state.paid[state.round].map((p,i)=>{
+        if(i===yourIndex) return p===true;
+        if(members[i].name==='Dayo') return false;
+        return true;
+      });
+      if(state.round===yourIndex && state.paid[state.round][yourIndex]){
+        state.balance += state.contribution*(state.size-1);
+        state.lastPot = state.contribution*(state.size-1); // short pot
+        state.justGotPot = true;
+      }
+      settle();
+    },
+    /* ---- safety: guardians, recovery, backup ---- */
+    getSafety(){ return {
+      guardians: state.guardians,
+      recovery: state.recovery,
+      phrase: 'maple lantern drum river cocoa sunset basket loyal candle iron velvet home',
+    };},
+    async setGuardians(idxs){ state.guardians = idxs; },
+    async approveRecovery(){
+      const r = state.recovery;
+      if(!r || r.youApproved) return;
+      r.youApproved = true;
+      r.approvals++;
+      if(r.approvals >= r.needed) r.waitDays = 3; // veto window starts
+    },
+    /* demo-only controls */
+    _friendLosesPhone(){
+      state.recovery = { memberIdx:3, approvals:2, needed:3, youApproved:false, waitDays:null };
+    },
+    _reset(){ location.reload(); }
+  };
+}
+
+/* ============================================================
+   LiveChain — the real wiring for ZEL. Architecture and findings
+   in docs/SIGNING.md. Summary of the design:
+
+   The Zano mobile wallet signs with CryptoNote ed25519 keys, which
+   ecrecover cannot verify, so it CANNOT sign our batches. Instead the
+   app generates its own secp256k1 key on first run; that key is the
+   MinimalAccount owner and silently signs every action (one tap, no
+   popup). The Zano wallet keeps two jobs: moving fUSD across the L1
+   privacy boundary to the account's CREATE2 address, and proving the
+   user's alias to the relayer once via window.zano REQUEST_MESSAGE_SIGN.
+
+   To go live: replace `const LIVE = null` with real values. Demo mode
+   remains the default while LIVE is null.
+   ============================================================ */
+
+const LIVE = null;
+/* const LIVE = {
+  rpcUrl:    'https://<zel-testnet-rpc>',
+  relayerUrl:'http://localhost:3000',
+  circleAddr:'0x<RoscaCircle>',
+  fusdAddr:  '0x<bridged fUSD>',
+  circleName:'Market Women Circle',
+}; */
+
+async function LiveChain(cfg){
+  const E = window.ethers;
+  if(!E) throw new Error('ethers failed to load');
+  const provider = new E.JsonRpcProvider(cfg.rpcUrl);
+
+  const CIRCLE_ABI = [
+    'function state() view returns (uint8)',
+    'function currentRound() view returns (uint16)',
+    'function roundStart() view returns (uint256)',
+    'function periodLength() view returns (uint256)',
+    'function gracePeriod() view returns (uint256)',
+    'function contribution() view returns (uint256)',
+    'function circleSize() view returns (uint16)',
+    'function rotation(uint256) view returns (address)',
+    'function memberStatus(address) view returns (bool,uint16,bool,uint256)',
+    'function join()',
+    'function contribute()',
+    'event ContributionMade(address indexed member, uint16 indexed round, uint256 amount)',
+    'event RoundSettled(uint16 indexed round, address indexed recipient, uint256 amountPaid, uint16 missedCount)',
+  ];
+  const ERC20_ABI = [
+    'function balanceOf(address) view returns (uint256)',
+    'function decimals() view returns (uint8)',
+    'function approve(address,uint256) returns (bool)',
+  ];
+  const ACCOUNT_ABI = [
+    'function nonce() view returns (uint256)',
+    'function batchDigest(address[],uint256[],bytes[],uint256) view returns (bytes32)',
+  ];
+
+  /* ---- the in-app owner key (see docs/SIGNING.md: key custody) ---- */
+  const KEY_SLOT = 'circle-owner-key';
+  const PHRASE_SLOT = 'circle-owner-phrase';
+  let pk = localStorage.getItem(KEY_SLOT);
+  if(!pk){
+    const w = E.Wallet.createRandom();
+    pk = w.privateKey;
+    localStorage.setItem(KEY_SLOT, pk);
+    localStorage.setItem(PHRASE_SLOT, w.mnemonic.phrase); // backup words for the safety screen
+  }
+  const owner = new E.Wallet(pk);
+  // TODO(v1 UI): a one-time backup screen for this key. Required until
+  // social recovery ships — a lost phone is a lost key.
+
+  async function post(url, body){
+    const r = await fetch(url, {method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify(body)});
+    const j = await r.json();
+    if(!r.ok) throw new Error(j.error || 'request failed');
+    return j;
+  }
+
+  /* ---- onboard: relayer deploys the account lazily (CREATE2) ---- */
+  const { account } = await post(cfg.relayerUrl + '/onboard', { owner: owner.address });
+  console.info('[circle] your account (fUSD deposit address on ZEL):', account);
+
+  const circle = new E.Contract(cfg.circleAddr, CIRCLE_ABI, provider);
+  const fusd   = new E.Contract(cfg.fusdAddr,  ERC20_ABI,  provider);
+  const acct   = new E.Contract(account,        ACCOUNT_ABI, provider);
+
+  /* ---- optional: prove the Zano alias to the relayer, once ----
+     Response shape of REQUEST_MESSAGE_SIGN must be verified on a real
+     device (docs/SIGNING.md "to verify"). Failure here is non-fatal:
+     the app just shows short addresses instead of aliases. */
+  async function linkAlias(){
+    if(!window.zano || localStorage.getItem('circle-alias-linked')) return;
+    try {
+      const message = `zano-circle:link:${account}:${Date.now()}`;
+      const res = await window.zano.request('REQUEST_MESSAGE_SIGN', { message }, 60_000);
+      if(res && !res.error){
+        await post(cfg.relayerUrl + '/link-alias', { account, message, response: res });
+        localStorage.setItem('circle-alias-linked', '1');
+      }
+    } catch(e){ console.warn('alias link skipped:', e.message); }
+  }
+  linkAlias();
+
+  /* ---- sign + relay: one signature, whole batch, zero gas ---- */
+  async function signAndRelay(calls){
+    const targets = calls.map(c => c.to);
+    const values  = calls.map(() => 0n);
+    const datas   = calls.map(c => c.data);
+    const nonce   = await acct.nonce();
+    // The CONTRACT computes the digest (single source of truth for hashing).
+    const digest  = await acct.batchDigest(targets, values, datas, nonce);
+    // CRITICAL: batchDigest is already EthSignedMessage-prefixed. Sign it RAW.
+    // owner.signMessage(digest) would prefix twice and fail verification.
+    const sig = E.Signature.from(owner.signingKey.sign(digest)).serialized;
+    await post(cfg.relayerUrl + '/relay', {
+      account, targets, datas, signature: sig,
+      values: values.map(v => v.toString()),
+    });
+  }
+
+  /* ---- state snapshot the screens render from ---- */
+  let decimals = 18, snap = null, members = [], names = [];
+  const POT_ACK = 'circle-pot-acked:' + cfg.circleAddr;
+
+  function shortAddr(a){ return a.slice(0,6) + '…' + a.slice(-4); }
+
+  async function refresh(){
+    const [stateN, roundN, sizeN, contribWei, roundStart, periodLen] = await Promise.all([
+      circle.state(), circle.currentRound(), circle.circleSize(),
+      circle.contribution(), circle.roundStart(), circle.periodLength(),
+    ]);
+    const size = Number(sizeN), round = Number(roundN), state = Number(stateN);
+
+    if(members.length !== size){
+      members = [];
+      for(let i = 0; i < size; i++) members.push(await circle.rotation(i));
+      try {
+        const r = await fetch(cfg.relayerUrl + '/aliases?accounts=' + members.join(','));
+        const j = await r.json();
+        names = members.map(a => j[a.toLowerCase()] || shortAddr(a));
+      } catch { names = members.map(shortAddr); }
+      try { decimals = Number(await fusd.decimals()); } catch {}
+    }
+
+    const you = members.findIndex(a => a.toLowerCase() === account.toLowerCase());
+    const [joined, , paidNow] = you >= 0
+      ? await circle.memberStatus(account) : [false, 0, false];
+
+    /* stamp-card history from events */
+    const paid = Array.from({length:size}, () => Array(size).fill(null));
+    const made = await circle.queryFilter(circle.filters.ContributionMade());
+    for(const ev of made){
+      const mi = members.findIndex(a => a.toLowerCase() === ev.args.member.toLowerCase());
+      const r = Number(ev.args.round);
+      if(mi >= 0 && r < size) paid[r][mi] = true;
+    }
+    const settledRounds = state === 2 ? size : round; // Completed => all settled
+    for(let r = 0; r < settledRounds; r++)
+      for(let m = 0; m < size; m++)
+        if(paid[r][m] !== true) paid[r][m] = false;   // settled + unpaid = missed
+
+    /* pot detection: my payout round has settled and I haven't seen it */
+    let justGotPot = false, lastPot = 0;
+    if(you >= 0 && (state === 2 || round > you) && localStorage.getItem(POT_ACK) !== String(you)){
+      const settled = await circle.queryFilter(circle.filters.RoundSettled(you));
+      if(settled.length){
+        justGotPot = true;
+        lastPot = Number(E.formatUnits(settled[0].args.amountPaid, decimals));
+      }
+    }
+
+    const bal = await fusd.balanceOf(account);
+    const contribution = Number(E.formatUnits(contribWei, decimals));
+    const secsLeft = Number(roundStart) + Number(periodLen) - Math.floor(Date.now()/1000);
+    const pl = Number(periodLen);
+
+    /* ---- safety state: my guardians + any friend's pending recovery ---- */
+    const ACCT_SAFETY_ABI = [
+      'function guardians() view returns (address[])',
+      'function proposedOwner() view returns (address)',
+      'function recoveryApprovals() view returns (uint256)',
+      'function approvalsNeeded() view returns (uint256)',
+      'function recoveryReadyAt() view returns (uint256)',
+      'function approvedRecovery(address) view returns (bool)',
+    ];
+    let safety = { guardians: null, recovery: null, phrase: localStorage.getItem(PHRASE_SLOT) || '' };
+    try {
+      const mine = new E.Contract(account, ACCT_SAFETY_ABI, provider);
+      const gs = await mine.guardians();
+      if(gs.length) safety.guardians = gs.map(g => members.findIndex(a => a.toLowerCase() === g.toLowerCase())).filter(i => i >= 0);
+      // scan fellow members for a pending recovery I could approve
+      for(let i = 0; i < size; i++){
+        if(i === you) continue;
+        const fa = new E.Contract(members[i], ACCT_SAFETY_ABI, provider);
+        const proposed = await fa.proposedOwner();
+        if(proposed !== E.ZeroAddress){
+          const [appr, need, readyAt, iApproved] = await Promise.all([
+            fa.recoveryApprovals(), fa.approvalsNeeded(), fa.recoveryReadyAt(),
+            fa.approvedRecovery(account),
+          ]);
+          safety.recovery = {
+            memberIdx: i, newOwner: proposed,
+            approvals: Number(appr), needed: Number(need),
+            youApproved: Boolean(iApproved),
+            waitDays: Number(readyAt) > 0
+              ? Math.max(0, Math.ceil((Number(readyAt) - Date.now()/1000) / 86400)) : null,
+          };
+          break; // one at a time is enough for the UI
+        }
+      }
+    } catch(e){ console.warn('safety scan:', e.message); }
+
+    snap = {
+      name: cfg.circleName || 'Your circle',
+      members: names, you: Math.max(you, 0), size, round, paid,
+      contribution, pot: contribution * size,
+      period: pl >= 6*86400 ? 'week' : pl >= 86400 ? 'day' : 'round',
+      joined: Boolean(joined), completed: state === 2,
+      balance: Number(E.formatUnits(bal, decimals)),
+      recipient: state === 1 && round < size ? round : null, // rotation order = payout order
+      daysLeft: Math.max(0, Math.ceil(secsLeft / 86400)),
+      justGotPot, lastPot,
+      _paidNow: Boolean(paidNow),
+      _safety: safety,
+    };
+    return snap;
+  }
+
+  await refresh();
+  setInterval(async () => { try { await refresh(); render(); } catch {} }, 15_000);
+
+  const amount = () => E.parseUnits(String(snap.contribution), decimals);
+
+  return {
+    demo: false,
+    get yourIndex(){ return snap.you; },
+    getCircle(){ return snap; },
+    ackPot(){ localStorage.setItem(POT_ACK, String(snap.you)); snap.justGotPot = false; },
+    async join(){
+      await signAndRelay([
+        { to: cfg.fusdAddr,  data: fusd.interface.encodeFunctionData('approve', [cfg.circleAddr, amount()]) },
+        { to: cfg.circleAddr, data: circle.interface.encodeFunctionData('join') },
+      ]);
+      await refresh();
+    },
+    async contribute(){
+      await signAndRelay([
+        { to: cfg.fusdAddr,  data: fusd.interface.encodeFunctionData('approve', [cfg.circleAddr, amount()]) },
+        { to: cfg.circleAddr, data: circle.interface.encodeFunctionData('contribute') },
+      ]);
+      await refresh();
+    },
+
+    /* ---- safety: guardians, recovery, backup (MinimalAccount v2) ---- */
+    getSafety(){ return snap._safety; },
+    async setGuardians(idxs){
+      const gs = idxs.map(i => members[i]);
+      const me = new E.Contract(account, [
+        'function setGuardians(address[])',
+      ], provider);
+      await signAndRelay([
+        { to: account, data: me.interface.encodeFunctionData('setGuardians', [gs]) },
+      ]);
+      await refresh();
+    },
+    async approveRecovery(){
+      const r = snap._safety.recovery;
+      if(!r || r.youApproved) return;
+      const friend = members[r.memberIdx];
+      const fa = new E.Contract(friend, [
+        'function approveRecovery(address)',
+      ], provider);
+      await signAndRelay([
+        { to: friend, data: fa.interface.encodeFunctionData('approveRecovery', [r.newOwner]) },
+      ]);
+      await refresh();
+    },
+    _reset(){ location.reload(); },
+  };
+}
+
+let chain = DemoChain();
+
+/* ============================================================
+   Screens. One primary action each. No crypto vocabulary.
+   ============================================================ */
+
+const main = document.getElementById('main');
+const actionbar = document.getElementById('actionbar');
+const hdr = document.getElementById('hdr-title');
+
+function fmt$(n){ return `$${n}<small>fUSD</small>`; }
+
+function render(){
+  const c = chain.getCircle();
+  hdr.textContent = c.name;
+  if(!c.joined) return screenJoin(c);
+  if(c.completed) return screenDone(c);
+  if(c.justGotPot) return screenPot(c);   // shown once, when the pot has actually LANDED
+  const youPaid = c.paid[c.round][c.you]===true;
+  return screenHome(c, youPaid);
+}
+
+/* ---------- 1. Join ---------- */
+function screenJoin(c){
+  main.innerHTML = `
+  <section class="screen active">
+    <h2>You're invited</h2>
+    <p class="sub">Mama Nkechi added you to this circle. Look over the terms, then join.</p>
+    <div class="card">
+      <div class="row"><span class="k">People</span><span class="v">${c.size} members</span></div>
+      <div class="row"><span class="k">Everyone puts in</span><span class="v money">${fmt$(c.contribution)} / ${c.period}</span></div>
+      <div class="row"><span class="k">The pot</span><span class="v money">${fmt$(c.pot)} each ${c.period}</span></div>
+      <div class="row"><span class="k">Your pot ${c.period}</span><span class="v">${ordinal(c.you+1)} of ${c.size}</span></div>
+    </div>
+    <div class="card">
+      <div class="row"><span class="k">Who holds the money?</span><span class="v">No one</span></div>
+      <p class="sub" style="margin-top:8px">Contributions go straight from each member to whoever's week it is. Not even the organizer can touch the pot.</p>
+    </div>
+  </section>`;
+  actionbar.innerHTML = `<button class="btn btn-primary" id="act">Join this circle</button>`;
+  document.getElementById('act').onclick = async ()=>{ await chain.join(); render(); };
+}
+
+/* ---------- 2. Home: the stamp card ---------- */
+function screenHome(c, youPaid){
+  const paidCount = c.paid[c.round].filter(p=>p===true).length;
+  const s = chain.getSafety ? chain.getSafety() : {guardians:null, recovery:null};
+  main.innerHTML = `
+  <section class="screen active">
+    ${recoveryAlert(c, s)}
+    ${statusStrip(c, youPaid, paidCount)}
+    ${stampCard(c)}
+    <div class="card">
+      <div class="row"><span class="k">Your savings balance</span><span class="v money">${fmt$(c.balance)}</span></div>
+      <div class="row" id="safety-row" style="cursor:pointer">
+        <span class="k">If you lose your phone</span>
+        <span class="v">${s.guardians ? `Your circle has your back ✓` : `Not protected yet ›`}</span>
+      </div>
+    </div>
+    ${demoPanel()}
+  </section>`;
+  const broke = !youPaid && c.balance < c.contribution;
+  actionbar.innerHTML = youPaid
+    ? `<button class="btn btn-primary" disabled>Paid for this ${c.period} ✓</button>`
+    : broke
+      ? `<button class="btn btn-primary" disabled>Add money first — you have ${'$'+c.balance}</button>`
+      : `<button class="btn btn-primary" id="act">Pay ${'$'+c.contribution} now</button>`;
+  const act = document.getElementById('act');
+  if(act) act.onclick = ()=>screenConfirm(c);
+  const sr = document.getElementById('safety-row');
+  if(sr) sr.onclick = ()=>screenSafety(c);
+  const ra = document.getElementById('recovery-cta');
+  if(ra) ra.onclick = ()=>screenApprove(c);
+  wireDemo();
+}
+
+/* Alert card when a fellow member's new phone needs your OK. */
+function recoveryAlert(c, s){
+  const r = s && s.recovery;
+  if(!r) return '';
+  const who = c.members[r.memberIdx];
+  if(r.youApproved){
+    const done = r.approvals >= r.needed;
+    return `<div class="status" style="margin-top:0">
+      <div class="big">${who}'s new phone: you said yes ✓</div>
+      <div class="small">${done
+        ? `Enough of the circle agreed. After a 3-day wait, ${who} is back — same savings, same card.`
+        : `${r.approvals} of ${r.needed} so far — waiting on others.`}</div>
+    </div>`;
+  }
+  return `<div class="status gold" style="margin-top:0">
+    <div class="big">${who} lost their phone</div>
+    <div class="small">They need ${r.needed} circle members to welcome their new phone. ${r.approvals} said yes so far.</div>
+    <button class="btn btn-primary" id="recovery-cta" style="margin-top:12px;min-height:48px;font-size:16px">Help ${who} get back in</button>
+  </div>`;
+}
+
+function statusStrip(c, youPaid, paidCount){
+  const who = c.members[c.recipient];
+  const yourWeek = c.recipient===c.you;
+  if(yourWeek){
+    return `<div class="status gold">
+      <div class="big">Your pot ${c.period} — pay your share to keep it moving</div>
+      <div class="small">${paidCount} of ${c.size} have paid · ${c.daysLeft} days left</div>
+    </div>`;
+  }
+  return `<div class="status">
+    <div class="big">${who}'s pot this ${c.period}</div>
+    <div class="small">${paidCount} of ${c.size} have paid · ${c.daysLeft} days left${youPaid?'':' · your turn to pay'}</div>
+  </div>`;
+}
+
+function stampCard(c){
+  const rows = c.members.map((name,mi)=>{
+    const isYou = mi===c.you;
+    const stamps = [];
+    for(let r=0;r<c.size;r++){
+      const isPotHolder = r===mi;   // rotation order == member order in v1
+      if(r>c.round){ stamps.push(`<span class="stamp pending" aria-label="upcoming"></span>`); continue; }
+      const p = c.paid[r]?.[mi];
+      if(isPotHolder && r<=c.round){
+        stamps.push(`<span class="potcoin" title="${name}'s pot" aria-label="${name}'s pot week">★</span>`);
+        continue;
+      }
+      if(p===true) stamps.push(`<span class="stamp paid ${isYou?'you':''}" aria-label="paid">✓</span>`);
+      else if(p===false) stamps.push(`<span class="stamp missed" aria-label="missed">✕</span>`);
+      else stamps.push(`<span class="stamp pending ${isYou?'you':''}" aria-label="not paid yet"></span>`);
+    }
+    return `<div class="stamprow ${mi===c.recipient?'current':''}">
+      <div class="who">${name}${isYou?' (you)':''}<span class="pos">pot ${ordinal(mi+1)}</span></div>
+      <div class="stamps">${stamps.join('')}</div>
+    </div>`;
+  }).join('');
+  return `<div class="stampcard">
+    <div class="title"><span class="t">Contribution card</span><span class="wk">${c.period} ${c.round+1} of ${c.size}</span></div>
+    ${rows}
+    <div class="legend">
+      <span><i class="l-paid"></i>paid</span>
+      <span><i class="l-miss"></i>missed</span>
+      <span><i class="l-pot"></i>pot</span>
+    </div>
+  </div>`;
+}
+
+/* ---------- 3. Confirm & pay ---------- */
+function screenConfirm(c){
+  main.innerHTML = `
+  <section class="screen active">
+    <h2>Pay your share</h2>
+    <p class="sub">Goes straight to ${c.members[c.recipient]}${c.recipient===c.you?' — that\u2019s you, it comes back in the pot':''}. One tap, nothing else to do.</p>
+    <div class="hero-amount">$${c.contribution}<small>fUSD</small></div>
+    <div class="card">
+      <div class="row"><span class="k">This ${c.period}'s pot goes to</span><span class="v">${c.members[c.recipient]}</span></div>
+      <div class="row"><span class="k">Your balance after</span><span class="v money">${fmt$(c.balance-c.contribution)}</span></div>
+      <div class="row"><span class="k">Fees</span><span class="v">$0</span></div>
+    </div>
+  </section>`;
+  actionbar.innerHTML = `
+    <button class="btn btn-primary" id="act">Confirm — pay $${c.contribution}</button>
+    <button class="btn btn-quiet" id="back">Not now</button>`;
+  document.getElementById('back').onclick = render;
+  document.getElementById('act').onclick = async ()=>{
+    await chain.contribute();
+    screenPaidStamp();
+  };
+}
+
+function screenPaidStamp(){
+  main.innerHTML = `
+  <section class="screen active center">
+    <div class="bigstamp">✓</div>
+    <h2 style="margin-top:18px">Paid</h2>
+    <p class="sub">Your stamp is on the card. Everyone in the circle can see it.</p>
+  </section>`;
+  actionbar.innerHTML = `<button class="btn btn-primary" id="act">Back to the circle</button>`;
+  document.getElementById('act').onclick = render;
+}
+
+/* ---------- 4. Pot week ---------- */
+function screenPot(c){
+  main.innerHTML = `
+  <section class="screen active center">
+    <div class="bigstamp gold">★</div>
+    <h2 style="margin-top:18px">The pot is yours</h2>
+    <p class="sub">${c.lastPot < c.pot ? 'Most of the circle paid — their contributions came straight to you.' : "Everyone's contribution came straight to you."}</p>
+    <div class="hero-amount">$${c.lastPot || c.pot}<small>fUSD</small></div>
+    <div class="card" style="text-align:left">
+      <div class="row"><span class="k">Your savings balance</span><span class="v money">${fmt$(c.balance)}</span></div>
+      <div class="row"><span class="k">Circle continues</span><span class="v">${c.completed?'finished':'next '+c.period+': '+c.members[c.recipient]}</span></div>
+    </div>
+    ${demoPanel()}
+  </section>`;
+  actionbar.innerHTML = `<button class="btn btn-gold" id="act">Continue</button>`;
+  document.getElementById('act').onclick = ()=>{ if(chain.ackPot) chain.ackPot(); render(); };
+  wireDemo();
+}
+
+/* ---------- done ---------- */
+function screenDone(c){
+  main.innerHTML = `
+  <section class="screen active center">
+    <div class="bigstamp">✓</div>
+    <h2 style="margin-top:18px">Circle complete</h2>
+    <p class="sub">Every member had their pot ${c.period}. Well done — start another one?</p>
+    ${stampCard(c)}
+    ${demoPanel()}
+  </section>`;
+  actionbar.innerHTML = `<button class="btn btn-primary" id="act">Start a new circle</button>`;
+  document.getElementById('act').onclick = ()=>chain._reset();
+  wireDemo();
+}
+
+/* ---------- safety: your circle has your back ---------- */
+function screenSafety(c){
+  const s = chain.getSafety();
+  const others = c.members.map((n,i)=>({n,i})).filter(m=>m.i!==c.you);
+  main.innerHTML = `
+  <section class="screen active">
+    <h2>If you lose your phone</h2>
+    <p class="sub">Phones get lost. Your savings shouldn't. Pick who in your circle can welcome your new phone back — same savings, same card, nothing lost.</p>
+    ${s.guardians ? `
+    <div class="status">
+      <div class="big">Your circle has your back ✓</div>
+      <div class="small">${s.guardians.length} members can approve your new phone. Most of them (${Math.floor(s.guardians.length/2)+1}) must agree, then a 3-day wait — so nobody can take your account while you still have it.</div>
+    </div>` : `
+    <div class="card">
+      ${others.map(m=>`
+        <div class="row"><span class="k">${m.n}</span><span class="v">✓ trusted</span></div>
+      `).join('')}
+    </div>
+    <p class="sub" style="margin-top:10px">Most of them (${Math.floor(others.length/2)+1} of ${others.length}) must agree before your new phone works, and there's a 3-day wait — so nobody can take your account while you still have your phone.</p>`}
+    <div class="card">
+      <div class="row" id="backup-row" style="cursor:pointer">
+        <span class="k">Backup words</span><span class="v">Show ›</span>
+      </div>
+      <p class="sub" style="margin-top:8px">A second way back in, just for you. Write them somewhere safe.</p>
+    </div>
+  </section>`;
+  actionbar.innerHTML = s.guardians
+    ? `<button class="btn btn-quiet" id="back">Back to the circle</button>`
+    : `<button class="btn btn-primary" id="act">Protect with my circle (${others.length} people)</button>
+       <button class="btn btn-quiet" id="back">Not now</button>`;
+  document.getElementById('back').onclick = render;
+  const act = document.getElementById('act');
+  if(act) act.onclick = async ()=>{
+    await chain.setGuardians(others.map(m=>m.i));
+    screenProtected(c, others.length);
+  };
+  document.getElementById('backup-row').onclick = ()=>screenBackupWords(c);
+}
+
+function screenProtected(c, n){
+  main.innerHTML = `
+  <section class="screen active center">
+    <div class="bigstamp">✓</div>
+    <h2 style="margin-top:18px">Your circle has your back</h2>
+    <p class="sub">${n} members can now welcome your new phone if this one is ever lost. Your savings stay yours.</p>
+  </section>`;
+  actionbar.innerHTML = `<button class="btn btn-primary" id="act">Back to the circle</button>`;
+  document.getElementById('act').onclick = render;
+}
+
+function screenBackupWords(c){
+  const s = chain.getSafety();
+  main.innerHTML = `
+  <section class="screen active">
+    <h2>Your backup words</h2>
+    <p class="sub">Write these down and keep them somewhere safe — not on this phone. Anyone with these words can open your savings, so show them to no one.</p>
+    <div class="card" style="font-family:var(--display);font-weight:700;font-size:17px;line-height:1.9;letter-spacing:.02em">
+      ${(s.phrase||'').split(' ').map((w,i)=>`<span style="display:inline-block;width:49%">${i+1}. ${w}</span>`).join('')}
+    </div>
+  </section>`;
+  actionbar.innerHTML = `<button class="btn btn-primary" id="act">I wrote them down</button>`;
+  document.getElementById('act').onclick = ()=>screenSafety(c);
+}
+
+/* ---------- approve a friend's new phone ---------- */
+function screenApprove(c){
+  const s = chain.getSafety();
+  const r = s.recovery;
+  if(!r){ render(); return; }
+  const who = c.members[r.memberIdx];
+  main.innerHTML = `
+  <section class="screen active">
+    <h2>${who} lost their phone</h2>
+    <p class="sub">Their new phone is asking to take over their place in the circle — same savings, same stamp card. Only say yes if you know it's really ${who}. Call them if you're not sure.</p>
+    <div class="card">
+      <div class="row"><span class="k">Who</span><span class="v">${who}</span></div>
+      <div class="row"><span class="k">Circle members who said yes</span><span class="v">${r.approvals} of ${r.needed} needed</span></div>
+      <div class="row"><span class="k">Then</span><span class="v">3-day wait</span></div>
+    </div>
+    <p class="sub" style="margin-top:10px">The 3-day wait means if ${who} still has their old phone, they can stop this — so a mistake here can't cost them anything.</p>
+  </section>`;
+  actionbar.innerHTML = `
+    <button class="btn btn-primary" id="act">Yes, it's really ${who}</button>
+    <button class="btn btn-quiet" id="back">Not now</button>`;
+  document.getElementById('back').onclick = render;
+  document.getElementById('act').onclick = async ()=>{
+    await chain.approveRecovery();
+    render();
+  };
+}
+
+
+function demoPanel(){
+  if(!chain.demo) return '';
+  return `<div class="demo-panel">
+    <div class="lab">Demo controls</div>
+    <div class="btns">
+      <button id="d-others">Everyone else pays</button>
+      <button id="d-miss">Dayo misses, ${chain.getCircle().period} ends</button>
+      <button id="d-lost">Dayo loses phone</button>
+      <button id="d-reset">Restart demo</button>
+    </div>
+  </div>`;
+}
+function wireDemo(){
+  const o=document.getElementById('d-others');
+  const m=document.getElementById('d-miss');
+  const l=document.getElementById('d-lost');
+  const r=document.getElementById('d-reset');
+  if(o) o.onclick=()=>{chain._othersPay();render();};
+  if(m) m.onclick=()=>{chain._someoneMisses();render();};
+  if(l) l.onclick=()=>{chain._friendLosesPhone();render();};
+  if(r) r.onclick=()=>chain._reset();
+}
+
+function ordinal(n){
+  const s=['th','st','nd','rd'],v=n%100;
+  return n+(s[(v-20)%10]||s[v]||s[0]);
+}
+
+(async () => {
+  if (LIVE) {
+    try {
+      chain = await LiveChain(LIVE);
+      const ribbon = document.querySelector('.demo-ribbon');
+      if (ribbon) ribbon.remove();
+    } catch (e) {
+      console.error('LiveChain failed, staying in demo mode:', e);
+    }
+  }
+  render();
+})();
+</script>
+</body>
+</html>
