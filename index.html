@@ -777,10 +777,6 @@ function screenJoin(c){
       <div class="row"><span class="k">The pot</span><span class="v money">${fmt$(c.pot)} each ${c.period}</span></div>
       <div class="row"><span class="k">Your pot ${c.period}</span><span class="v">${ordinal(c.you+1)} of ${c.size}</span></div>
     </div>
-    <div class="card">
-      <div class="row"><span class="k">Who holds the money?</span><span class="v">No one</span></div>
-      <p class="sub" style="margin-top:8px">Contributions go straight from each member to whoever's ${c.period} it is. Not even the organizer can touch the pot.</p>
-    </div>
     <div class="poweredby">${FUSD.replace('fusdmark','')} <span><b>Freedom Dollar</b> · a private digital dollar · powered by Zano</span></div>
     <div class="faqlink"><button id="faq-link">Questions? ›</button></div>
   </section>`;
@@ -970,8 +966,6 @@ function screenFaq(c){
      "The pot still goes out on time with whatever was collected. The person who missed now owes that amount, and it comes out of their own pot when their turn arrives."],
     ["What if someone takes their pot and then stops paying?",
      "The circle keeps going and every miss goes on their card for the whole circle to see. They lose their finishing stamp, and future circles can keep the early turns for people with a clean history. Same rule as any real circle: the most trusted people go first."],
-    ["Can people join in the middle?",
-     "No. Everyone joins before the circle starts, the circle runs until every member has had their pot, then a new one can begin."],
     ["What if I lose my phone?",
      "Your circle has your back. Most of your circle can approve your new phone, there is a 3 day wait so nobody can take over an account that is not really lost, and your savings and stamp card carry over."],
     ["What if the group wants to stop?",
