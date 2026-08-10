@@ -192,6 +192,11 @@ h2{font-family:var(--display);font-size:22px;font-weight:800;line-height:1.15}
 }
 .poweredby img{height:16px;width:16px;border-radius:50%}
 .poweredby b{color:var(--ink);font-weight:700}
+.faqlink{margin-top:12px;text-align:center}
+.faqlink button{background:none;color:var(--ink-soft);font-size:13.5px;font-weight:700}
+.faq details{background:var(--card);border:1.5px solid var(--calico-dim);border-radius:var(--radius);padding:13px 15px;margin-top:10px}
+.faq summary{font-weight:700;font-size:15px;cursor:pointer}
+.faq p{margin-top:9px;color:var(--ink-soft);font-size:14.5px;line-height:1.5}
 
 /* ---------- status strip ---------- */
 .status{
@@ -777,9 +782,11 @@ function screenJoin(c){
       <p class="sub" style="margin-top:8px">Contributions go straight from each member to whoever's ${c.period} it is. Not even the organizer can touch the pot.</p>
     </div>
     <div class="poweredby">${FUSD.replace('fusdmark','')} <span><b>Freedom Dollar</b> · a private digital dollar · powered by Zano</span></div>
+    <div class="faqlink"><button id="faq-link">Questions? ›</button></div>
   </section>`;
   actionbar.innerHTML = `<button class="btn btn-primary" id="act">Join this circle</button>`;
   document.getElementById('act').onclick = async ()=>{ await chain.join(); render(); };
+  document.getElementById('faq-link').onclick = ()=>screenFaq(c);
 }
 
 /* ---------- 2. Home: the stamp card ---------- */
@@ -952,6 +959,36 @@ function screenDone(c){
   actionbar.innerHTML = `<button class="btn btn-primary" id="act">Start a new circle</button>`;
   document.getElementById('act').onclick = ()=>chain._reset();
   wireDemo();
+}
+
+/* ---------- questions ---------- */
+function screenFaq(c){
+  const qa = [
+    ["Who holds the money?",
+     "No one. Contributions go straight from each member to whoever's turn it is. Not even the organizer can touch the pot."],
+    ["What if someone misses a payment?",
+     "The pot still goes out on time with whatever was collected. The person who missed now owes that amount, and it comes out of their own pot when their turn arrives."],
+    ["What if someone takes their pot and then stops paying?",
+     "The circle keeps going and every miss goes on their card for the whole circle to see. They lose their finishing stamp, and future circles can keep the early turns for people with a clean history. Same rule as any real circle: the most trusted people go first."],
+    ["Can people join in the middle?",
+     "No. Everyone joins before the circle starts, the circle runs until every member has had their pot, then a new one can begin."],
+    ["What if I lose my phone?",
+     "Your circle has your back. Most of your circle can approve your new phone, there is a 3 day wait so nobody can take over an account that is not really lost, and your savings and stamp card carry over."],
+    ["What if the group wants to stop?",
+     "If most members agree, the circle ends. Everyone who paid the current round gets that payment back. Past pots stay where they went, just like a real circle."],
+    ["What does it cost?",
+     "Nothing during the pilot. There is a hard limit written into the code: it can never take more than 1 percent of a pot, and no one can ever raise that limit."],
+    ["What is fUSD?",
+     "A private digital dollar. One fUSD stays worth about one US dollar, and what you send and save stays your business."],
+  ];
+  main.innerHTML = `
+  <section class="screen active faq">
+    <h2>Questions</h2>
+    <p class="sub">Tap a question to open it.</p>
+    ${qa.map(([q,a])=>`<details><summary>${q}</summary><p>${a}</p></details>`).join('')}
+  </section>`;
+  actionbar.innerHTML = `<button class="btn btn-primary" id="act">Back</button>`;
+  document.getElementById('act').onclick = render;
 }
 
 /* ---------- safety: your circle has your back ---------- */
