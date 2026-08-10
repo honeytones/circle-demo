@@ -887,7 +887,7 @@ function stampCard(c){
     </div>`;
   }).join('');
   return `<div class="stampcard">
-    <div class="title"><span class="t">Contribution card</span><span class="wk">${c.period} ${c.round+1} of ${c.size}</span></div>
+    <div class="title"><span class="t">Contribution card</span><span class="wk">${c.completed ? `all ${c.size} ${c.period}s` : `${c.period} ${c.round+1} of ${c.size}`}</span></div>
     ${rows}
     <div class="legend">
       <span><i class="l-paid"></i>paid</span>
