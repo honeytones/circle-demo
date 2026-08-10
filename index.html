@@ -3,6 +3,12 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
+<meta name="theme-color" content="#1B2A6B">
+<link rel="manifest" href="manifest.webmanifest">
+<link rel="apple-touch-icon" href="icon-192.png">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-title" content="Circle">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
 <title>Circle, save together</title>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link href="https://fonts.googleapis.com/css2?family=Bricolage+Grotesque:opsz,wght@12..96,400;12..96,600;12..96,800&display=swap" rel="stylesheet">
@@ -197,6 +203,8 @@ h2{font-family:var(--display);font-size:22px;font-weight:800;line-height:1.15}
 .faq details{background:var(--card);border:1.5px solid var(--calico-dim);border-radius:var(--radius);padding:13px 15px;margin-top:10px}
 .faq summary{font-weight:700;font-size:15px;cursor:pointer}
 .faq p{margin-top:9px;color:var(--ink-soft);font-size:14.5px;line-height:1.5}
+.faq a{color:var(--indigo-600);font-weight:700}
+[data-theme="dark"] .faq a{color:#A9B8F5}
 
 /* ---------- status strip ---------- */
 .status{
@@ -973,7 +981,7 @@ function screenFaq(c){
     ["What does it cost?",
      "Nothing during the pilot. There is a hard limit written into the code: it can never take more than 1 percent of a pot, and no one can ever raise that limit."],
     ["What is fUSD?",
-     "A private digital dollar. One fUSD stays worth about one US dollar, and what you send and save stays your business."],
+     "A private digital dollar from <a href='https://freedomdollar.com' target='_blank' rel='noopener'>Freedom Dollar</a>. One fUSD stays worth about one US dollar, and what you send and save stays your business."],
   ];
   main.innerHTML = `
   <section class="screen active faq">
