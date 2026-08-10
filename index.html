@@ -16,6 +16,7 @@
   --frame:#0F1B4D;          /* outside the phone card */
   --card:#ffffff;           /* card surfaces */
   --on-indigo:#FAF6EE;      /* text on indigo surfaces (fixed both themes) */
+  --on-indigo-soft:#C9D2F2; /* secondary text on indigo (fixed both themes) */
   --stamp-paid:#1B2A6B;
   --indigo-950:#0F1B4D;
   --indigo-800:#1B2A6B;
@@ -48,6 +49,8 @@
 }
 [data-theme="dark"] .stamp.paid{color:#0F1B4D}
 [data-theme="dark"] .stamprow.current{background:#22306B}
+[data-theme="dark"] .btn-quiet{color:#A9B8F5}
+[data-theme="dark"] .btn[disabled]{opacity:.6}
 [data-theme="dark"] .bigstamp{background:var(--stamp-paid);color:#0F1B4D}
 [data-theme="dark"] .bigstamp.gold{background:radial-gradient(circle at 32% 30%, #F6C566, var(--pot-gold) 55%, var(--pot-gold-deep));color:#3A2705}
 *{box-sizing:border-box;margin:0;padding:0}
@@ -91,7 +94,7 @@ header{display:flex;align-items:flex-start;justify-content:space-between;gap:10p
 }
 header .kicker{
   font-size:12px;letter-spacing:.14em;text-transform:uppercase;
-  color:var(--indigo-100);font-weight:600;
+  color:var(--on-indigo-soft);font-weight:600;
 }
 header h1{
   font-family:var(--display);
@@ -192,7 +195,7 @@ h2{font-family:var(--display);font-size:22px;font-weight:800;line-height:1.15}
   padding:16px;
 }
 .status .big{font-family:var(--display);font-size:19px;font-weight:800;line-height:1.25}
-.status .small{margin-top:6px;font-size:13.5px;color:var(--indigo-100)}
+.status .small{margin-top:6px;font-size:13.5px;color:var(--on-indigo-soft)}
 .status.gold{background:linear-gradient(135deg, var(--pot-gold), var(--pot-gold-deep));color:#3A2705}
 .status.gold .small{color:#5C400E}
 
