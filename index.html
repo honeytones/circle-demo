@@ -842,7 +842,10 @@ function stampCard(c){
       const isPotHolder = r===mi;   // rotation order == member order in v1
       if(r>c.round){ stamps.push(`<span class="stamp pending" aria-label="upcoming"></span>`); continue; }
       const p = c.paid[r]?.[mi];
-      if(isPotHolder && r<=c.round){
+      // The coin means the pot LANDED: settled rounds only. During the
+      // recipient's own live week they get a normal stamp like everyone
+      // else (they pay too); the coin stamps in at settlement.
+      if(isPotHolder && (r<c.round || c.completed)){
         stamps.push(`<span class="potcoin" title="${name}'s pot" aria-label="${name}'s pot week">★</span>`);
         continue;
       }
