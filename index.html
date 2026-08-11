@@ -373,6 +373,9 @@ function DemoChain(){
     completed:false,
     justGotPot:false,           // set when a settle credits YOUR pot
     lastPot:0,                  // what actually landed (full or short)
+    lastTopUp:0,                // how much of that pot came from the protection
+    bond:40,                    // organizer's protection, posted before anyone joined
+    bondRemaining:40,           // drops when it tops up a short pot
     balance:25,                 // fUSD in your account
     guardians:null,             // null = protection not set up yet
     recovery:null,              // pending recovery of a FRIEND's account
@@ -411,6 +414,9 @@ function DemoChain(){
       daysLeft: 3,
       justGotPot: state.justGotPot,
       lastPot: state.lastPot,
+      lastTopUp: state.lastTopUp,
+      bond: state.bond,
+      bondRemaining: state.bondRemaining,
     };},
     ackPot(){ state.justGotPot = false; },
     async join(){ state.joined=true; },
@@ -425,6 +431,7 @@ function DemoChain(){
         if(state.round===yourIndex){
           state.balance += state.contribution*state.size;
           state.lastPot = state.contribution*state.size;
+          state.lastTopUp = 0;
           state.justGotPot = true;
         }
         settle();
@@ -437,21 +444,29 @@ function DemoChain(){
         if(state.round===yourIndex){
           state.balance += state.contribution*state.size;
           state.lastPot = state.contribution*state.size;
+          state.lastTopUp = 0;
           state.justGotPot = true;
         }
         settle();
       }
     },
     _someoneMisses(){
-      // everyone but you and Dayo pays; deadline passes; settle short
+      // everyone but you and one member pays; deadline passes; the round
+      // settles SHORT — and the organizer's protection tops the pot up,
+      // exactly like the contract: recipient made whole, bond drops,
+      // the miss goes on the card, the misser now owes the organizer.
       state.paid[state.round] = state.paid[state.round].map((p,i)=>{
         if(i===yourIndex) return p===true;
         if(i===3) return false;
         return true;
       });
+      const topUp = Math.min(state.contribution, state.bondRemaining);
+      state.bondRemaining -= topUp;
       if(state.round===yourIndex && state.paid[state.round][yourIndex]){
-        state.balance += state.contribution*(state.size-1);
-        state.lastPot = state.contribution*(state.size-1); // short pot
+        const landed = state.contribution*(state.size-1) + topUp;
+        state.balance += landed;
+        state.lastPot = landed;          // full pot while protection lasts
+        state.lastTopUp = topUp;
         state.justGotPot = true;
       }
       settle();
@@ -792,6 +807,10 @@ function screenJoin(c){
       <div class="row"><span class="k">The pot</span><span class="v money">${fmt$(c.pot)} each ${c.period}</span></div>
       <div class="row"><span class="k">Your pot ${c.period}</span><span class="v">${ordinal(c.you+1)} of ${c.size}</span></div>
     </div>
+    <div class="card">
+      <div class="row"><span class="k">If someone misses</span><span class="v">Pot still full</span></div>
+      <p class="sub" style="margin-top:8px">This circle is protected: ${PRESET.inviter} has put down $${c.bond} of her own money. If anyone misses, the pot is topped up from it. The person who missed owes her, not you.</p>
+    </div>
     <div class="poweredby">${FUSD.replace('fusdmark','')} <span><b>Freedom Dollar</b> · a private digital dollar</span> <img class="zanochip" src="data:image/png;base64,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" alt="Zano"> <span>powered by <b>Zano</b></span></div>
     <div class="faqlink"><button id="faq-link">Questions? ›</button></div>
   </section>`;
@@ -811,6 +830,7 @@ function screenHome(c, youPaid){
     ${stampCard(c)}
     <div class="card">
       <div class="row"><span class="k">Your savings balance</span><span class="v money">${fmt$(c.balance)}</span></div>
+      ${c.bond ? `<div class="row"><span class="k">Circle protection</span><span class="v money">${fmt$(c.bondRemaining)}${c.bondRemaining<c.bond?` <small>of ${'$'+c.bond}</small>`:''}</span></div>` : ''}
       <div class="row" id="safety-row" style="cursor:pointer">
         <span class="k">If you lose your phone</span>
         <span class="v">${s.guardians ? `Your circle has your back ✓` : `Not protected yet ›`}</span>
@@ -944,7 +964,11 @@ function screenPot(c){
   <section class="screen active center">
     <div class="bigstamp gold">★</div>
     <h2 style="margin-top:18px">The pot is yours</h2>
-    <p class="sub">${c.lastPot < c.pot ? 'Most of the circle paid. Their contributions came straight to you.' : "Everyone's contribution came straight to you."}</p>
+    <p class="sub">${c.lastTopUp > 0
+      ? `One member missed, but this circle is protected. ${PRESET.inviter}'s cover topped up the pot, so you still get every dollar. The miss is on their card, and they owe her now, not you.`
+      : c.lastPot < c.pot
+        ? 'Most of the circle paid. Their contributions came straight to you.'
+        : "Everyone's contribution came straight to you."}</p>
     <div class="hero-amount">$${c.lastPot || c.pot}${FUSD}</div>
     <div class="card" style="text-align:left">
       <div class="row"><span class="k">Your savings balance</span><span class="v money">${fmt$(c.balance)}</span></div>
@@ -978,9 +1002,11 @@ function screenFaq(c){
     ["Who holds the money?",
      "No one. Contributions go straight from each member to whoever's turn it is. Not even the organizer can touch the pot."],
     ["What if someone misses a payment?",
-     "The pot still goes out on time with whatever was collected. The person who missed now owes that amount, and it comes out of their own pot when their turn arrives."],
+     "The pot still goes out in full and on time. The organizer puts down her own money before the circle starts, you can see how much on the way in, and it tops up the pot when someone misses. The person who missed then owes her, and it comes out of their own pot when their turn arrives."],
     ["What if someone takes their pot and then stops paying?",
-     "The circle keeps going and every miss goes on their card for the whole circle to see. They lose their finishing stamp, and future circles can keep the early turns for people with a clean history. Same rule as any real circle: the most trusted people go first."],
+     "Everyone else is still covered, up to the protection amount, and every miss goes on their card for the whole circle to see. They lose their finishing stamp, and future circles can keep the early turns for people with a clean history. Same rule as any real circle: the most trusted people go first."],
+    ["Why do the later pots get a little extra?",
+     "Waiting your turn is the patient seat, so it pays. If any make-up money is left over when the circle ends, it goes to members by pot order. The later your pot, the bigger your share."],
     ["What if I lose my phone?",
      "Your circle has your back. Most of your circle can approve your new phone, there is a 3 day wait so nobody can take over an account that is not really lost, and your savings and stamp card carry over."],
     ["What if the group wants to stop?",
