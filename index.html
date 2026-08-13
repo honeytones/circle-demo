@@ -810,7 +810,8 @@ function circleLink(){
     const v = new URLSearchParams(location.search).get('v');
     return location.origin + location.pathname + '?c=' + LIVE.circleAddr + (v ? '&v=' + v : '');
   }
-  return location.href.split('#')[0];
+  const v = new URLSearchParams(location.search).get('v');
+  return location.origin + location.pathname + (v ? '?v=' + v : '');
 }
 
 function openWa(text){
