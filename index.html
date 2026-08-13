@@ -156,10 +156,15 @@ h2{font-family:var(--display);font-size:22px;font-weight:800;line-height:1.15}
   margin-top:16px;
 }
 .stampcard .title{
-  display:flex;justify-content:space-between;align-items:center;margin-bottom:12px;
+  display:flex;justify-content:space-between;align-items:center;margin-bottom:12px;gap:8px;
 }
 .stampcard .title .t{font-family:var(--display);font-weight:800;font-size:16px}
-.stampcard .title .wk{font-size:13px;color:var(--ink-soft);font-weight:600}
+.stampcard .title .wk{font-size:13px;color:var(--ink-soft);font-weight:600;margin-left:auto}
+.sharebtn{
+  background:none;color:var(--indigo-600);
+  font-size:13px;font-weight:700;padding:4px 2px;flex:none;
+}
+[data-theme="dark"] .sharebtn{color:#A9B8F5}
 .stamprow{
   display:grid;
   grid-template-columns:64px 1fr;
@@ -255,6 +260,9 @@ h2{font-family:var(--display);font-size:22px;font-weight:800;line-height:1.15}
 .btn-gold{background:linear-gradient(135deg,var(--pot-gold),var(--pot-gold-deep));color:#2E1F04}
 .btn-quiet{background:transparent;color:var(--indigo-800);font-size:15px;min-height:44px;font-weight:700}
 .btn[disabled]{opacity:.45;cursor:default}
+/* WhatsApp moment buttons: quiet, in the chat's own green */
+.btn-wa{background:transparent;color:#1B9E52;font-size:15px;min-height:44px;font-weight:700}
+[data-theme="dark"] .btn-wa{color:#4CD98A}
 
 /* ---------- paid / celebration states ---------- */
 .bigstamp{
@@ -785,6 +793,205 @@ const hdr = document.getElementById('hdr-title');
 const FUSD = '<img class="fusdmark" src="data:image/png;base64,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" alt="fUSD">';
 function fmt$(n){ return `$${n}<small>fUSD</small>`; }
 
+/* ============================================================
+   WhatsApp share pack. The chat is where the circle already
+   lives, so the app hands it ready made moments: the card as
+   an image, one tap messages, and an invite link. The app stays
+   the ledger, the chat can say anything, the card is the truth.
+   Nothing here talks to WhatsApp servers: wa.me links and the
+   phone's own share sheet, that's all.
+   ============================================================ */
+
+/* The link that travels with every message. Live circles carry their
+   address (?c=...) so the receiver lands on THIS circle; the demo
+   shares itself, preset included. */
+function circleLink(){
+  if(LIVE && LIVE.circleAddr){
+    const v = new URLSearchParams(location.search).get('v');
+    return location.origin + location.pathname + '?c=' + LIVE.circleAddr + (v ? '&v=' + v : '');
+  }
+  return location.href.split('#')[0];
+}
+
+function openWa(text){
+  const url = 'https://wa.me/?text=' + encodeURIComponent(text);
+  const w = window.open(url, '_blank', 'noopener');
+  if(!w) location.href = url;
+}
+
+/* Moment copy. Plain sentences, both presets covered by reading
+   the period and names from the circle itself. */
+function msgPaid(c, round){
+  return `I paid my $${c.contribution} for ${c.period} ${round+1} of ${c.size} \u2713 My stamp is on the card. ${circleLink()}`;
+}
+function msgPot(c){
+  const next = c.completed ? null : c.members[c.recipient];
+  return `The pot landed today, $${c.lastPot || c.pot} \u{1F31F} Thank you all.`
+    + (next ? ` Next ${c.period} it goes to ${next}.` : ` That was the last pot, our circle is complete.`)
+    + ` ${circleLink()}`;
+}
+function msgInvite(c){
+  return `Our savings circle runs here. ${c.size} people, everyone puts in $${c.contribution} each ${c.period}, and the whole pot goes to one member in turn. No one holds the money in between. See the card: ${circleLink()}`;
+}
+
+/* ---- the stamp card as a shareable image ----
+   Drawn by hand on a canvas (no libraries, works offline) in the
+   light palette so the shared card looks the same from every phone.
+   This IS the badge people show off, so it carries the brand. */
+function cardImageBlob(c){
+  const P = {
+    bg:'#FAF6EE', line:'#EFE9DC',
+    indigo:'#1B2A6B', ink:'#141726', soft:'#4A4F63',
+    lite:'#DDE2F4', gold:'#E8A93D', goldDeep:'#B97F1E', goldLite:'#F6C566',
+    miss:'#B3432B', onIndigo:'#FAF6EE', onIndigoSoft:'#C9D2F2',
+  };
+  const W = 1000, pad = 44, nameW = 250, rowH = 82;
+  const headH = 168, legendH = 60, footH = 76;
+  const H = headH + 26 + c.size*rowH + legendH + footH;
+  const cv = document.createElement('canvas');
+  cv.width = W; cv.height = H;
+  const x = cv.getContext('2d');
+
+  x.fillStyle = P.bg; x.fillRect(0, 0, W, H);
+
+  /* header */
+  x.fillStyle = P.indigo; x.fillRect(0, 0, W, headH - 12);
+  x.fillStyle = P.onIndigoSoft;
+  x.font = '600 20px system-ui, sans-serif';
+  x.textBaseline = 'alphabetic';
+  x.fillText(PRESET.kicker.toUpperCase(), pad, 56);
+  x.fillStyle = P.onIndigo;
+  x.font = '800 44px system-ui, sans-serif';
+  x.fillText(c.name, pad, 108);
+  x.font = '600 22px system-ui, sans-serif';
+  x.fillStyle = P.onIndigoSoft;
+  const wk = c.completed ? `all ${c.size} ${c.period}s complete` : `${c.period} ${c.round+1} of ${c.size}`;
+  x.fillText(wk, pad, 142);
+  /* adire resist dots under the header */
+  x.fillStyle = P.onIndigo;
+  for(let dx = 12; dx < W; dx += 26){
+    x.beginPath(); x.arc(dx, headH - 6, 3.4, 0, Math.PI*2); x.fill();
+  }
+
+  /* stamp helpers */
+  const R = 20;
+  function stampAt(cx, cy, kind){
+    x.setLineDash([]);
+    if(kind === 'paid'){
+      x.fillStyle = P.indigo;
+      x.beginPath(); x.arc(cx, cy, R, 0, Math.PI*2); x.fill();
+      x.fillStyle = '#FFFFFF';
+      x.font = '700 22px system-ui, sans-serif';
+      x.textAlign = 'center'; x.textBaseline = 'middle';
+      x.fillText('\u2713', cx, cy + 1);
+    } else if(kind === 'missed'){
+      x.strokeStyle = P.miss; x.lineWidth = 3;
+      x.beginPath(); x.arc(cx, cy, R - 1.5, 0, Math.PI*2); x.stroke();
+      x.fillStyle = P.miss;
+      x.font = '700 20px system-ui, sans-serif';
+      x.textAlign = 'center'; x.textBaseline = 'middle';
+      x.fillText('\u2715', cx, cy + 1);
+    } else if(kind === 'pot'){
+      const g = x.createRadialGradient(cx - 6, cy - 7, 2, cx, cy, R);
+      g.addColorStop(0, P.goldLite); g.addColorStop(.55, P.gold); g.addColorStop(1, P.goldDeep);
+      x.fillStyle = g;
+      x.beginPath(); x.arc(cx, cy, R, 0, Math.PI*2); x.fill();
+      x.fillStyle = '#3A2705';
+      x.font = '700 20px system-ui, sans-serif';
+      x.textAlign = 'center'; x.textBaseline = 'middle';
+      x.fillText('\u2605', cx, cy + 1);
+    } else { /* pending */
+      x.strokeStyle = P.lite; x.lineWidth = 3;
+      x.setLineDash([5, 5]);
+      x.beginPath(); x.arc(cx, cy, R - 1.5, 0, Math.PI*2); x.stroke();
+      x.setLineDash([]);
+    }
+    x.textAlign = 'left'; x.textBaseline = 'alphabetic';
+  }
+
+  /* rows */
+  const rowsTop = headH + 20;
+  const cellW = (W - pad*2 - nameW) / c.size;
+  for(let mi = 0; mi < c.size; mi++){
+    const y = rowsTop + mi*rowH;
+    if(!c.completed && mi === c.recipient){
+      x.fillStyle = P.lite;
+      if(x.roundRect){ x.beginPath(); x.roundRect(pad - 14, y + 4, W - pad*2 + 28, rowH - 8, 14); x.fill(); }
+      else x.fillRect(pad - 14, y + 4, W - pad*2 + 28, rowH - 8);
+    }
+    x.fillStyle = P.ink;
+    x.font = '700 26px system-ui, sans-serif';
+    x.fillText(c.members[mi] + (mi === c.you ? ' (you)' : ''), pad, y + 38);
+    x.fillStyle = P.soft;
+    x.font = '600 18px system-ui, sans-serif';
+    x.fillText('pot ' + ordinal(mi + 1), pad, y + 64);
+
+    for(let r = 0; r < c.size; r++){
+      const cx = pad + nameW + r*cellW + cellW/2;
+      const cy = y + rowH/2;
+      const isPotHolder = r === mi;
+      if(r > c.round && !c.completed){ stampAt(cx, cy, 'pending'); continue; }
+      if(isPotHolder && (r < c.round || c.completed)){ stampAt(cx, cy, 'pot'); continue; }
+      const p = c.paid[r] ? c.paid[r][mi] : null;
+      if(p === true) stampAt(cx, cy, 'paid');
+      else if(p === false) stampAt(cx, cy, 'missed');
+      else stampAt(cx, cy, 'pending');
+    }
+  }
+
+  /* legend */
+  const ly = rowsTop + c.size*rowH + 34;
+  let lx = pad;
+  function legend(kind, label){
+    stampAt(lx + 12, ly - 7, kind);
+    x.fillStyle = P.soft;
+    x.font = '600 20px system-ui, sans-serif';
+    x.fillText(label, lx + 32, ly);
+    lx += 32 + x.measureText(label).width + 40;
+  }
+  legend('paid', 'paid'); legend('missed', 'missed'); legend('pot', 'pot');
+
+  /* footer */
+  x.strokeStyle = P.line; x.lineWidth = 2;
+  x.beginPath(); x.moveTo(pad, ly + 26); x.lineTo(W - pad, ly + 26); x.stroke();
+  x.fillStyle = P.soft;
+  x.font = '600 19px system-ui, sans-serif';
+  x.textAlign = 'center';
+  x.fillText(PRESET.kicker + ' \u00b7 powered by Zano', W/2, ly + 60);
+  x.textAlign = 'left';
+
+  return new Promise(res => cv.toBlob(res, 'image/png'));
+}
+
+async function shareCard(c){
+  try{
+    const blob = await cardImageBlob(c);
+    if(!blob) throw new Error('no image');
+    const file = new File([blob], 'circle-card.png', { type: 'image/png' });
+    if(navigator.canShare && navigator.canShare({ files: [file] })){
+      try{ await navigator.share({ files: [file], text: 'Our circle so far. ' + circleLink() }); return; }
+      catch(e){ if(e && e.name === 'AbortError') return; }
+    }
+    /* No share sheet (desktop, older webview): save the image so it can
+       be attached by hand, and open the chat with the message ready. */
+    const a = document.createElement('a');
+    a.href = URL.createObjectURL(blob);
+    a.download = 'circle-card.png';
+    a.click();
+    setTimeout(() => URL.revokeObjectURL(a.href), 10000);
+    openWa('Our circle so far. ' + circleLink());
+  }catch(e){
+    openWa('Our circle so far. ' + circleLink());
+  }
+}
+
+function wireShare(){
+  const s = document.getElementById('share-card');
+  if(s) s.onclick = () => shareCard(chain.getCircle());
+  const inv = document.getElementById('invite-row');
+  if(inv) inv.onclick = () => openWa(msgInvite(chain.getCircle()));
+}
+
 function render(){
   const c = chain.getCircle();
   hdr.textContent = c.name;
@@ -828,6 +1035,10 @@ function screenHome(c, youPaid){
     <div class="card">
       <div class="row"><span class="k">Your savings balance</span><span class="v money">${fmt$(c.balance)}</span></div>
       ${c.bond ? `<div class="row"><span class="k">Circle protection</span><span class="v money">${fmt$(c.bondRemaining)}${c.bondRemaining<c.bond?` <small>of ${'$'+c.bond}</small>`:''}</span></div>` : ''}
+      <div class="row" id="invite-row" style="cursor:pointer">
+        <span class="k">Invite to this circle</span>
+        <span class="v">WhatsApp ›</span>
+      </div>
       <div class="row" id="safety-row" style="cursor:pointer">
         <span class="k">If you lose your phone</span>
         <span class="v">${s.guardians ? `Your circle has your back ✓` : `Not protected yet ›`}</span>
@@ -847,6 +1058,7 @@ function screenHome(c, youPaid){
   if(sr) sr.onclick = ()=>screenSafety(c);
   const ra = document.getElementById('recovery-cta');
   if(ra) ra.onclick = ()=>screenApprove(c);
+  wireShare();
   wireDemo();
 }
 
@@ -911,7 +1123,7 @@ function stampCard(c){
     </div>`;
   }).join('');
   return `<div class="stampcard">
-    <div class="title"><span class="t">Contribution card</span><span class="wk">${c.completed ? `all ${c.size} ${c.period}s` : `${c.period} ${c.round+1} of ${c.size}`}</span></div>
+    <div class="title"><span class="t">Contribution card</span><span class="wk">${c.completed ? `all ${c.size} ${c.period}s` : `${c.period} ${c.round+1} of ${c.size}`}</span><button class="sharebtn" id="share-card" aria-label="Share this card">Share ›</button></div>
     ${rows}
     <div class="legend">
       <span><i class="l-paid"></i>paid</span>
@@ -939,20 +1151,24 @@ function screenConfirm(c){
     <button class="btn btn-quiet" id="back">Not now</button>`;
   document.getElementById('back').onclick = render;
   document.getElementById('act').onclick = async ()=>{
+    const shareText = msgPaid(c, c.round); // capture BEFORE contribute: settle may advance the round
     await chain.contribute();
-    screenPaidStamp();
+    screenPaidStamp(shareText);
   };
 }
 
-function screenPaidStamp(){
+function screenPaidStamp(shareText){
   main.innerHTML = `
   <section class="screen active center">
     <div class="bigstamp">✓</div>
     <h2 style="margin-top:18px">Paid</h2>
     <p class="sub">Your stamp is on the card. Everyone in the circle can see it.</p>
   </section>`;
-  actionbar.innerHTML = `<button class="btn btn-primary" id="act">Back to the circle</button>`;
+  actionbar.innerHTML = `
+    <button class="btn btn-primary" id="act">Back to the circle</button>
+    <button class="btn btn-wa" id="wa">Tell the circle on WhatsApp</button>`;
   document.getElementById('act').onclick = render;
+  document.getElementById('wa').onclick = ()=>openWa(shareText);
 }
 
 /* ---------- 4. Pot week ---------- */
@@ -973,8 +1189,11 @@ function screenPot(c){
     </div>
     ${demoPanel()}
   </section>`;
-  actionbar.innerHTML = `<button class="btn btn-gold" id="act">Continue</button>`;
+  actionbar.innerHTML = `
+    <button class="btn btn-gold" id="act">Continue</button>
+    <button class="btn btn-wa" id="wa">Thank the circle on WhatsApp</button>`;
   document.getElementById('act').onclick = ()=>{ if(chain.ackPot) chain.ackPot(); render(); };
+  document.getElementById('wa').onclick = ()=>openWa(msgPot(c));
   wireDemo();
 }
 
@@ -988,8 +1207,12 @@ function screenDone(c){
     ${stampCard(c)}
     ${demoPanel()}
   </section>`;
-  actionbar.innerHTML = `<button class="btn btn-primary" id="act">Start a new circle</button>`;
+  actionbar.innerHTML = `
+    <button class="btn btn-primary" id="act">Start a new circle</button>
+    <button class="btn btn-wa" id="wa">Share the finished card</button>`;
   document.getElementById('act').onclick = ()=>chain._reset();
+  document.getElementById('wa').onclick = ()=>shareCard(c);
+  wireShare();
   wireDemo();
 }
 
@@ -1012,6 +1235,8 @@ function screenFaq(c){
      "Nothing during the pilot. There is a hard limit written into the code: it can never take more than 1 percent of a pot, and no one can ever raise that limit."],
     ["What is fUSD?",
      "A private digital dollar from <a href='https://freedomdollar.com' target='_blank' rel='noopener'>Freedom Dollar</a>. One fUSD stays worth about one US dollar, and what you send and save stays your business."],
+    ["Can I share the card?",
+     "Yes. Tap Share on the card to send it as a picture to your WhatsApp group or anywhere else. The chat can say anything, the card is the truth."],
   ];
   main.innerHTML = `
   <section class="screen active faq">
