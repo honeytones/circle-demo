@@ -624,6 +624,15 @@ async function LiveChain(cfg){
   const POT_ACK = 'circle-pot-acked:' + cfg.circleAddr;
 
   function shortAddr(a){ return a.slice(0,6) + '…' + a.slice(-4); }
+  /* Escape any untrusted string before it goes into innerHTML. Member names
+     come from the relayer's /aliases endpoint, which is external input we do
+     not control: a hostile relayer could otherwise return HTML/JS that runs
+     in this origin, where the account signing key lives. Neutralize it. */
+  function escapeHtml(s){
+    return String(s).replace(/[&<>"']/g, c => ({
+      '&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'
+    })[c]);
+  }
 
   async function refresh(){
     const [stateN, roundN, sizeN, contribWei, roundStart, periodLen] = await Promise.all([
@@ -638,7 +647,7 @@ async function LiveChain(cfg){
       try {
         const r = await fetch(cfg.relayerUrl + '/aliases?accounts=' + members.join(','));
         const j = await r.json();
-        names = members.map(a => j[a.toLowerCase()] || shortAddr(a));
+        names = members.map(a => escapeHtml(j[a.toLowerCase()] || shortAddr(a)));
       } catch { names = members.map(shortAddr); }
       try { decimals = Number(await fusd.decimals()); } catch {}
     }
