@@ -1262,21 +1262,31 @@ function screenFaq(c){
 function screenSafety(c){
   const s = chain.getSafety();
   const others = c.members.map((n,i)=>({n,i})).filter(m=>m.i!==c.you);
+  /* Guardian floor: recovery needs a real strict majority quorum. One guardian
+     is a sole recovery authority and two means both must approve, so require
+     at least 3. This is app layer policy only, the contract at 038c44a does
+     not enforce it (see zano-circle docs/THREAT-MODEL.md). Odd counts are a
+     mild liveness optimization, not a security requirement, so even guardian
+     counts are allowed. */
+  const gOK = others.length >= 3;
   main.innerHTML = `
   <section class="screen active">
     <h2>If you lose your phone</h2>
-    <p class="sub">Phones get lost. Your savings shouldn't. Pick who in your circle can welcome your new phone back. Same savings, same card, nothing lost.</p>
+    <p class="sub">Phones get lost. Your savings shouldn't.</p>
     ${s.guardians ? `
     <div class="status">
       <div class="big">Your circle has your back ✓</div>
       <div class="small">${s.guardians.length} members can approve your new phone. Most of them (${Math.floor(s.guardians.length/2)+1}) must agree, then a 3 day wait, so nobody can take your account while you still have it.</div>
-    </div>` : `
+    </div>` : gOK ? `
     <div class="card">
       ${others.map(m=>`
         <div class="row"><span class="k">${m.n}</span><span class="v">✓ trusted</span></div>
       `).join('')}
     </div>
-    <p class="sub" style="margin-top:10px">Most of them (${Math.floor(others.length/2)+1} of ${others.length}) must agree before your new phone works, and there's a 3 day wait, so nobody can take your account while you still have your phone.</p>`}
+    <p class="sub" style="margin-top:10px">Everyone in your circle can welcome your new phone back. Same savings, same card, nothing lost. Most of them (${Math.floor(others.length/2)+1} of ${others.length}) must agree before your new phone works, and there's a 3 day wait, so nobody can take your account while you still have your phone.</p>` : `
+    <div class="card">
+      <p class="sub">Phone recovery needs at least 3 guardians. Your circle is too small for guardian protection. Keep your backup words safe so you can always recover your account.</p>
+    </div>`}
     <div class="card">
       <div class="row" id="backup-row" style="cursor:pointer">
         <span class="k">Backup words</span><span class="v">Show ›</span>
@@ -1284,13 +1294,14 @@ function screenSafety(c){
       <p class="sub" style="margin-top:8px">A second way back in, just for you. Write them somewhere safe.</p>
     </div>
   </section>`;
-  actionbar.innerHTML = s.guardians
+  actionbar.innerHTML = s.guardians || !gOK
     ? `<button class="btn btn-quiet" id="back">Back to the circle</button>`
     : `<button class="btn btn-primary" id="act">Protect with my circle (${others.length} people)</button>
        <button class="btn btn-quiet" id="back">Not now</button>`;
   document.getElementById('back').onclick = render;
   const act = document.getElementById('act');
   if(act) act.onclick = async ()=>{
+    if(!gOK) return; /* floor invariant lives next to the dangerous call */
     await chain.setGuardians(others.map(m=>m.i));
     screenProtected(c, others.length);
   };
