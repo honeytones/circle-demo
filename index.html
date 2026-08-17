@@ -1434,8 +1434,27 @@ function readInviteAddr(){
 let INVITE_ADDR = null;
 function shortInvite(){ return INVITE_ADDR.slice(0,6) + '...' + INVITE_ADDR.slice(-4); }
 
+/* ethers loads as a deferred script, which runs AFTER this inline
+   script parses. On a cold load window.ethers is therefore absent
+   here, and LiveChain would throw before the library ever arrives.
+   Wait for it, but only on the live path: demo mode needs no ethers
+   and must keep rendering instantly. Deferred scripts run before
+   DOMContentLoaded, so that event is the signal; the timeout covers
+   a dead CDN, in which case we resolve anyway and LiveChain fails
+   into demo mode exactly as before. */
+function ethersReady(timeoutMs){
+  if(window.ethers) return Promise.resolve(true);
+  return new Promise(resolve => {
+    const done = () => resolve(Boolean(window.ethers));
+    const t = setTimeout(done, timeoutMs);
+    document.addEventListener('DOMContentLoaded', () => { clearTimeout(t); done(); }, { once: true });
+    if(document.readyState !== 'loading'){ clearTimeout(t); done(); }
+  });
+}
+
 (async () => {
   if (LIVE) {
+    await ethersReady(10_000);
     const invite = readInviteAddr();
     if (invite) INVITE_ADDR = invite;
     if (invite && invite.toLowerCase() !== String(LIVE.circleAddr || '').toLowerCase()){
