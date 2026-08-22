@@ -261,9 +261,11 @@ h2{font-family:var(--display);font-size:22px;font-weight:800;line-height:1.15}
 .btn-gold{background:linear-gradient(135deg,var(--pot-gold),var(--pot-gold-deep));color:#2E1F04}
 .btn-quiet{background:transparent;color:var(--indigo-800);font-size:15px;min-height:44px;font-weight:700}
 .btn[disabled]{opacity:.45;cursor:default}
-/* WhatsApp moment buttons: quiet, in the chat's own green */
+/* Chat moment buttons: quiet, in a chat app green */
 .btn-wa{background:transparent;color:#1B9E52;font-size:15px;min-height:44px;font-weight:700}
 [data-theme="dark"] .btn-wa{color:#4CD98A}
+#app-toast{position:fixed;left:50%;bottom:86px;transform:translateX(-50%) translateY(8px);background:var(--ink,#182235);color:#fff;font-family:var(--body);font-weight:700;font-size:13px;padding:10px 16px;border-radius:12px;opacity:0;pointer-events:none;transition:opacity .18s ease,transform .18s ease;z-index:99;max-width:86vw;text-align:center;box-shadow:0 6px 18px rgba(0,0,0,.25)}
+#app-toast.show{opacity:1;transform:translateX(-50%) translateY(0)}
 
 /* ---------- paid / celebration states ---------- */
 .bigstamp{
@@ -967,12 +969,13 @@ function escapeHtml(s){
 }
 
 /* ============================================================
-   WhatsApp share pack. The chat is where the circle already
-   lives, so the app hands it ready made moments: the card as
-   an image, one tap messages, and an invite link. The app stays
-   the ledger, the chat can say anything, the card is the truth.
-   Nothing here talks to WhatsApp servers: wa.me links and the
-   phone's own share sheet, that's all.
+   Share pack. The chat is where the circle already lives -
+   WhatsApp, Signal, Telegram, whatever the group uses - so the
+   app hands it ready made moments: the card as an image, one
+   tap messages, and an invite link. The app stays the ledger,
+   the chat can say anything, the card is the truth.
+   Nothing here talks to any chat service: the phone's own
+   share sheet, or the clipboard for manual pasting, that's all.
    ============================================================ */
 
 /* The link that travels with every message. Live circles carry their
@@ -987,10 +990,49 @@ function circleLink(){
   return location.origin + location.pathname + (v ? '?v=' + v : '');
 }
 
-function openWa(text){
-  const url = 'https://wa.me/?text=' + encodeURIComponent(text);
-  const w = window.open(url, '_blank', 'noopener');
-  if(!w) location.href = url;
+function shareText(text){
+  if(navigator.share){
+    navigator.share({text}).catch(e=>{
+      if(!e || e.name !== 'AbortError') copyText(text);
+    });
+  } else {
+    copyText(text);
+  }
+}
+
+function copyText(text){
+  const done = ()=>toast('Copied \u2014 paste it in any chat');
+  if(navigator.clipboard && navigator.clipboard.writeText){
+    navigator.clipboard.writeText(text).then(done, ()=>{ if(legacyCopy(text)) done(); });
+  } else if(legacyCopy(text)){
+    done();
+  }
+}
+
+function legacyCopy(text){
+  const ta = document.createElement('textarea');
+  ta.value = text;
+  ta.style.position = 'fixed'; ta.style.opacity = '0';
+  document.body.appendChild(ta);
+  ta.select();
+  let ok = false;
+  try{ ok = document.execCommand('copy'); }catch(e){}
+  ta.remove();
+  return ok;
+}
+
+let toastTimer = null;
+function toast(msg){
+  let t = document.getElementById('app-toast');
+  if(!t){
+    t = document.createElement('div');
+    t.id = 'app-toast';
+    document.body.appendChild(t);
+  }
+  t.textContent = msg;
+  t.classList.add('show');
+  clearTimeout(toastTimer);
+  toastTimer = setTimeout(()=>t.classList.remove('show'), 2200);
 }
 
 /* Moment copy. Plain sentences, both presets covered by reading
@@ -1153,9 +1195,9 @@ async function shareCard(c){
     a.download = 'circle-card.png';
     a.click();
     setTimeout(() => URL.revokeObjectURL(a.href), 10000);
-    openWa('Our circle so far. ' + circleLink());
+    shareText('Our circle so far. ' + circleLink());
   }catch(e){
-    openWa('Our circle so far. ' + circleLink());
+    shareText('Our circle so far. ' + circleLink());
   }
 }
 
@@ -1163,7 +1205,9 @@ function wireShare(){
   const s = document.getElementById('share-card');
   if(s) s.onclick = () => shareCard(chain.getCircle());
   const inv = document.getElementById('invite-row');
-  if(inv) inv.onclick = () => openWa(msgInvite(chain.getCircle()));
+  if(inv) inv.onclick = () => shareText(msgInvite(chain.getCircle()));
+  const cp = document.getElementById('copy-invite');
+  if(cp) cp.onclick = () => copyText(msgInvite(chain.getCircle()));
 }
 
 function render(){
@@ -1259,7 +1303,7 @@ function screenHome(c, youPaid){
   actionbar.innerHTML = `<div class="v2 vfoot">
     <div class="footinfo">
       <div class="brandline"><i class="flogo mk-f" role="img" aria-label="fUSD"></i><a class="flink" href="https://freedomdollar.com" target="_blank" rel="noopener"><b>Freedom Dollar</b></a><span>\u00b7 powered by</span><i class="flogo mk-z" role="img" aria-label="Zano"></i><a class="flink" href="https://zano.org" target="_blank" rel="noopener"><b>Zano</b></a></div>
-      <div class="qrow"><button class="qlink" id="faq-link">Questions &amp; help \u203a</button><button class="walink" id="invite-row">Invite on WhatsApp \u203a</button><button class="theme-toggle" id="theme-toggle" aria-label="Switch light or dark look">\u263e</button></div>
+      <div class="qrow"><button class="qlink" id="faq-link">Questions &amp; help \u203a</button><button class="walink" id="invite-row">Invite \u203a</button><button class="sharelink" id="copy-invite">Copy link \u203a</button><button class="theme-toggle" id="theme-toggle" aria-label="Switch light or dark look">\u263e</button></div>
     </div>
     ${payBtn}
     <div class="subline">${yourWeek?'You collect':who+' collects'} the full $${c.pot} when everyone's in</div>
@@ -1397,13 +1441,13 @@ function screenConfirm(c){
     <button class="btn btn-quiet" id="back">Not now</button>`;
   document.getElementById('back').onclick = render;
   document.getElementById('act').onclick = async ()=>{
-    const shareText = msgPaid(c, c.round); // capture BEFORE contribute: settle may advance the round
+    const shareMsg = msgPaid(c, c.round); // capture BEFORE contribute: settle may advance the round
     await chain.contribute();
-    screenPaidStamp(shareText);
+    screenPaidStamp(shareMsg);
   };
 }
 
-function screenPaidStamp(shareText){
+function screenPaidStamp(shareMsg){
   main.innerHTML = `
   <section class="screen active center">
     <div class="bigstamp">✓</div>
@@ -1412,9 +1456,9 @@ function screenPaidStamp(shareText){
   </section>`;
   actionbar.innerHTML = `
     <button class="btn btn-primary" id="act">Back to the circle</button>
-    <button class="btn btn-wa" id="wa">Tell the circle on WhatsApp</button>`;
+    <button class="btn btn-wa" id="wa">Tell the circle</button>`;
   document.getElementById('act').onclick = render;
-  document.getElementById('wa').onclick = ()=>openWa(shareText);
+  document.getElementById('wa').onclick = ()=>shareText(shareMsg);
 }
 
 /* ---------- 4. Pot week ---------- */
@@ -1455,11 +1499,11 @@ function screenPot(c){
   </section>`;
   actionbar.innerHTML = `<div class="v2 vfoot">
     <button class="pay" id="act"><span class="lbl">Withdraw to my wallet</span><span class="amt">$${landed}</span></button>
-    <button class="wabtn" id="wa">Thank the circle on WhatsApp</button>
+    <button class="wabtn" id="wa">Thank the circle</button>
     <div class="subline">Keep paying so the circle finishes strong for everyone</div>
   </div>`;
   document.getElementById('act').onclick = ()=>{ if(chain.ackPot) chain.ackPot(); render(); };
-  document.getElementById('wa').onclick = ()=>openWa(msgPot(c));
+  document.getElementById('wa').onclick = ()=>shareText(msgPot(c));
   wireDemo();
 }
 
@@ -1503,7 +1547,7 @@ function screenFaq(c){
     ["What is fUSD?",
      "A private digital dollar from <a href='https://freedomdollar.com' target='_blank' rel='noopener'>Freedom Dollar</a>. One fUSD stays worth about one US dollar, and what you send and save stays your business."],
     ["Can I share the card?",
-     "Yes. Tap Share on the card to send it as a picture to your WhatsApp group or anywhere else. The chat can say anything, the card is the truth."],
+     "Yes. Tap Share on the card to send it as a picture to your group chat \u2014 WhatsApp, Signal, Telegram, anywhere. The chat can say anything, the card is the truth."],
     ["Something not working?",
      `Message us and a real person will sort it out. Include your circle name if you can.</p><p>${TG}`],
   ];
@@ -1655,7 +1699,7 @@ function ordinal(n){
 /* ---------- invite links (?c=) ----------
    Live circle links carry the circle address in ?c= (written by
    circleLink above). Read it on load so an opener lands on that
-   circle's join screen. The param travels over WhatsApp, so it is
+   circle's join screen. The param travels over chat apps, so it is
    untrusted data: strict address validation, never rendered as
    HTML, and ignored entirely if it does not parse. */
 function readInviteAddr(){
