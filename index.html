@@ -468,7 +468,7 @@ h2{font-family:var(--display);font-size:22px;font-weight:800;line-height:1.15}
 <script>
 /* Storage that never throws: falls back to in-memory if localStorage is
    unavailable (some private-browsing modes / odd webviews). */
-const store = (()=>{ try{ store.setItem('__t','1'); localStorage.removeItem('__t'); return localStorage; }
+const store = (()=>{ try{ localStorage.setItem('__t','1'); localStorage.removeItem('__t'); return localStorage; }
   catch(e){ const m={}; return { getItem:k=>m[k]??null, setItem:(k,v)=>{m[k]=String(v)}, removeItem:k=>{delete m[k]} }; } })();
 
 /* ---- theme: dark or light, your choice, remembered ---- */
@@ -736,8 +736,13 @@ async function LiveChain(cfg){
     return j;
   }
 
-  /* ---- onboard: relayer deploys the account lazily (CREATE2) ---- */
-  const { account } = await post(cfg.relayerUrl + '/onboard', { owner: owner.address });
+  /* ---- onboard: relayer deploys the account lazily (CREATE2) ----
+     The relayer requires proof of key possession: an EIP-191 signature over
+     a fresh `zano-circle:onboard:<owner>:<ts>` message (see relayer.js). */
+  const obMessage = `zano-circle:onboard:${owner.address}:${Date.now()}`;
+  const obSignature = await owner.signMessage(obMessage);
+  const { account } = await post(cfg.relayerUrl + '/onboard',
+    { owner: owner.address, message: obMessage, signature: obSignature });
   console.info('[circle] your account (fUSD deposit address on ZEL):', account);
 
   const circle = new E.Contract(cfg.circleAddr, CIRCLE_ABI, provider);
