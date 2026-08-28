@@ -1012,7 +1012,10 @@ function recipientName(c){
 function circleLink(){
   if(LIVE && LIVE.circleAddr){
     const v = new URLSearchParams(location.search).get('v');
-    return location.origin + location.pathname + '?c=' + LIVE.circleAddr + (v ? '&v=' + v : '');
+    /* F-8: always share lowercase. ethers rejects a wrong-case EIP-55
+       checksum but accepts all-lowercase, and hand-forwarded links get
+       case-mangled by chat apps and humans; lowercase cannot break. */
+    return location.origin + location.pathname + '?c=' + String(LIVE.circleAddr).toLowerCase() + (v ? '&v=' + v : '');
   }
   const v = new URLSearchParams(location.search).get('v');
   return location.origin + location.pathname + (v ? '?v=' + v : '');
@@ -1303,10 +1306,28 @@ function screenJoin(c){
   </section>`;
   actionbar.innerHTML = `<div class="v2 vfoot">
     <div class="qrow" style="margin:0 0 7px"><button class="qlink" id="faq-link">Questions &amp; help \u203a</button></div>
+    <div id="join-err" role="alert" style="display:none;margin:0 0 8px;padding:9px 12px;border-radius:10px;background:rgba(208,82,82,.14);color:#d05252;font-size:14px"></div>
     <button class="pay" id="act"><span class="lbl">Join this circle</span></button>
     <div class="subline">You'll confirm in your Zano wallet \u00b7 no gas fees to join</div>
   </div>`;
-  document.getElementById('act').onclick = async ()=>{ await chain.join(); render(); };
+  /* F-7: joining is a network action through the relayer. In rehearsal a
+     rejection (rate limit) died as an unhandled promise rejection and the
+     button just did nothing. Pending state + a visible, retryable error.
+     textContent keeps any relayer-supplied message inert as markup. */
+  const joinBtn = document.getElementById('act');
+  joinBtn.onclick = async ()=>{
+    joinBtn.disabled = true;
+    joinBtn.querySelector('.lbl').textContent = 'Joining\u2026';
+    const err = document.getElementById('join-err');
+    err.style.display = 'none';
+    try { await chain.join(); render(); }
+    catch(e){
+      joinBtn.disabled = false;
+      joinBtn.querySelector('.lbl').textContent = 'Join this circle';
+      err.textContent = 'Could not join: ' + ((e && e.message) ? e.message : 'network problem') + '. Try again in a moment.';
+      err.style.display = 'block';
+    }
+  };
   document.getElementById('faq-link').onclick = ()=>screenFaq(c);
 }
 
@@ -1477,13 +1498,28 @@ function screenConfirm(c){
     </div>
   </section>`;
   actionbar.innerHTML = `
+    <div id="pay-err" role="alert" style="display:none;margin:0 0 8px;padding:9px 12px;border-radius:10px;background:rgba(208,82,82,.14);color:#d05252;font-size:14px"></div>
     <button class="btn btn-primary" id="act">Confirm, pay $${c.contribution}</button>
     <button class="btn btn-quiet" id="back">Not now</button>`;
   document.getElementById('back').onclick = render;
-  document.getElementById('act').onclick = async ()=>{
+  /* F-7 pattern on the money action too: a relayer rejection here must
+     not leave a frozen screen with the failure only in the console. */
+  const payBtn = document.getElementById('act');
+  payBtn.onclick = async ()=>{
+    payBtn.disabled = true;
+    payBtn.textContent = 'Paying\u2026';
+    const err = document.getElementById('pay-err');
+    err.style.display = 'none';
     const shareMsg = msgPaid(c, c.round); // capture BEFORE contribute: settle may advance the round
-    await chain.contribute();
-    screenPaidStamp(shareMsg);
+    try {
+      await chain.contribute();
+      screenPaidStamp(shareMsg);
+    } catch(e){
+      payBtn.disabled = false;
+      payBtn.textContent = `Confirm, pay $${c.contribution}`;
+      err.textContent = 'Payment did not go through: ' + ((e && e.message) ? e.message : 'network problem') + '. Your money has not moved. Try again in a moment.';
+      err.style.display = 'block';
+    }
   };
 }
 
@@ -1756,15 +1792,33 @@ function readInviteAddr(){
   catch(e){ return null; }
   if(!raw) return null;
   const E = window.ethers;
+  /* F-8: an unparseable ?c= must be surfaced, not silently dropped —
+     dropping it opened the BUILT-IN circle while the user believed they
+     had followed the invite. 'invalid' is the sentinel for that case.
+     Valid addresses normalize to lowercase (see circleLink). */
   if(E && E.isAddress){
     /* full EIP-55 check when ethers is already loaded */
-    try { return E.isAddress(raw) ? E.getAddress(raw) : null; }
-    catch(e){ return null; }
+    try { return E.isAddress(raw) ? E.getAddress(raw).toLowerCase() : 'invalid'; }
+    catch(e){ return 'invalid'; }
   }
   /* ethers is a deferred script and may not be up yet; fall back to
      a strict shape check and normalize to lowercase, which every
      ethers call accepts without a checksum complaint */
-  return /^0x[0-9a-fA-F]{40}$/.test(raw) ? raw.toLowerCase() : null;
+  return /^0x[0-9a-fA-F]{40}$/.test(raw) ? raw.toLowerCase() : 'invalid';
+}
+
+/* F-8: dead-end screen for a damaged invite link. No join button — the
+   right circle is unknowable, so nothing here may pretend otherwise. */
+function screenBadInvite(){
+  SUBSCREEN = true; // never let any repaint replace this with a circle
+  const ribbon = document.querySelector('.demo-ribbon');
+  if (ribbon) ribbon.remove();
+  main.innerHTML = `
+  <section class="screen active v2">
+    <div class="big">This invite link is damaged</div>
+    <p class="sub">The circle address inside the link is not valid, so this page cannot show you the right circle. Ask the person who invited you to share the link again, and open the new one.</p>
+  </section>`;
+  actionbar.innerHTML = '';
 }
 
 /* Set when the app was opened through a valid ?c= invite AND the live
@@ -1802,6 +1856,7 @@ function ethersReady(timeoutMs){
   if (LIVE) {
     await ethersReady(10_000);
     const invite = readInviteAddr();
+    if (invite === 'invalid') { screenBadInvite(); return; } // F-8: hard stop
     if (invite) INVITE_ADDR = invite;
     if (invite && invite.toLowerCase() !== String(LIVE.circleAddr || '').toLowerCase()){
       /* invited into a different circle than the built-in one:
