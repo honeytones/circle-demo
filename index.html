@@ -682,7 +682,7 @@ const LIVE = null;
   relayerUrl:'http://localhost:3000',
   circleAddr:'0x<RoscaCircle>',
   fusdAddr:  '0x<bridged fUSD>',
-  circleName:'Market Women Circle',
+  circleName:'<the REAL circle name, agreed with members — never the preset one>',
 }; */
 
 async function LiveChain(cfg){
@@ -973,6 +973,16 @@ function escapeHtml(s){
   })[c]);
 }
 
+/* F-5: on a live circle that is still Joining, `recipient` is null
+   (payouts start with Active), so c.members[c.recipient] rendered
+   "undefined" in every who-collects string. Rotation order equals
+   payout order, so member 0 is always the first collector; fall back
+   to that, and to a positional label if the members list is short. */
+function recipientName(c){
+  const i = (c.recipient == null) ? 0 : c.recipient;
+  return c.members[i] ?? ('Member ' + (i + 1));
+}
+
 /* ============================================================
    Share pack. The chat is where the circle already lives -
    WhatsApp, Signal, Telegram, whatever the group uses - so the
@@ -1046,7 +1056,7 @@ function msgPaid(c, round){
   return `I paid my $${c.contribution} for ${c.period} ${round+1} of ${c.size} \u2713 My stamp is on the card. ${circleLink()}`;
 }
 function msgPot(c){
-  const next = c.completed ? null : c.members[c.recipient];
+  const next = c.completed ? null : recipientName(c);
   return `The pot landed today, $${c.lastPot || c.pot} \u{1F31F} Thank you all.`
     + (next ? ` Next ${c.period} it goes to ${next}.` : ` That was the last pot, our circle is complete.`)
     + ` ${circleLink()}`;
@@ -1230,9 +1240,11 @@ function screenJoin(c){
   /* Invite arrivals (?c=) get neutral copy plus the circle address.
      PRESET.inviter comes from ?v= in the same link, so an attacker can
      write any name into it; never let it vouch for an invited circle.
-     INVITE_ADDR is validated hex only, safe to place in markup. */
+     F-4: the preset line is demo-only — a live circle opened WITHOUT an
+     invite (bare link, organizer's own device) must not claim the preset
+     inviter/name either. INVITE_ADDR is validated hex, safe in markup. */
   const cap = w => w.charAt(0).toUpperCase()+w.slice(1);
-  const sub = INVITE_ADDR
+  const sub = (INVITE_ADDR || LIVE_ACTIVE)
     ? `You have been invited to this circle. Check everything looks right, then join.`
     : `${PRESET.inviter} invited you to join <b>${c.name}</b>.`;
   const lastRow = INVITE_ADDR
@@ -1280,7 +1292,7 @@ function screenJoin(c){
 function screenHome(c, youPaid){
   const paidCount = c.paid[c.round].filter(p=>p===true).length;
   const s = chain.getSafety ? chain.getSafety() : {guardians:null, recovery:null};
-  const who = c.members[c.recipient];
+  const who = recipientName(c);
   const yourWeek = c.recipient===c.you;
   const cap = w => w.charAt(0).toUpperCase()+w.slice(1);
   main.innerHTML = `
@@ -1379,7 +1391,7 @@ function recoveryAlert(c, s){
 }
 
 function statusStrip(c, youPaid, paidCount){
-  const who = c.members[c.recipient];
+  const who = recipientName(c);
   const yourWeek = c.recipient===c.you;
   if(yourWeek){
     return `<div class="status gold">
@@ -1433,10 +1445,10 @@ function screenConfirm(c){
   main.innerHTML = `
   <section class="screen active">
     <h2>Pay your share</h2>
-    <p class="sub">Goes straight to ${c.members[c.recipient]}${c.recipient===c.you?'. That\u2019s you, it comes back in the pot':''}. One tap, nothing else to do.</p>
+    <p class="sub">Goes straight to ${recipientName(c)}${c.recipient===c.you?'. That\u2019s you, it comes back in the pot':''}. One tap, nothing else to do.</p>
     <div class="hero-amount">$${c.contribution}${FUSD}</div>
     <div class="card">
-      <div class="row"><span class="k">This ${c.period}'s pot goes to</span><span class="v">${c.members[c.recipient]}</span></div>
+      <div class="row"><span class="k">This ${c.period}'s pot goes to</span><span class="v">${recipientName(c)}</span></div>
       <div class="row"><span class="k">Your balance after</span><span class="v money">${fmt$(c.balance-c.contribution)}</span></div>
       <div class="row"><span class="k">Fees</span><span class="v">$0</span></div>
     </div>
@@ -1472,11 +1484,13 @@ function screenPot(c){
   /* Caption keeps all three HEAD cases (protection top-up, a short pot,
      the full pot) with the mockup's full-pot wording dynamicized. */
   const cap = c.lastTopUp > 0
-    ? `One member missed, but this circle is protected. ${PRESET.inviter}'s cover topped up the pot, so you still get every dollar. The miss is on their card, and they owe her now, not you.`
+    ? (LIVE_ACTIVE
+      ? `One member missed, but this circle is protected. The organizer's cover topped up the pot, so you still get every dollar. The miss is on their card, and they owe the organizer now, not you.`
+      : `One member missed, but this circle is protected. ${PRESET.inviter}'s cover topped up the pot, so you still get every dollar. The miss is on their card, and they owe her now, not you.`)
     : landed < c.pot
       ? `Most of the circle paid this ${c.period}. Their contributions came straight to your wallet.`
       : `The full pot from ${c.name}, ${c.period} ${c.you+1}. Sent straight to your wallet.`;
-  const next = c.completed ? ` That was the last pot, the circle is complete.` : ` Next ${c.period} it goes to ${c.members[c.recipient]}.`;
+  const next = c.completed ? ` That was the last pot, the circle is complete.` : ` Next ${c.period} it goes to ${recipientName(c)}.`;
   const topupRow = c.lastTopUp > 0
     ? `<div class="kv" style="padding:7px 0"><span class="k">Protection covered a miss</span><span class="v">+$${c.lastTopUp}</span></div>` : '';
   const shortRow = (!c.lastTopUp && landed < c.pot)
@@ -1732,6 +1746,11 @@ function readInviteAddr(){
 let INVITE_ADDR = null;
 function shortInvite(){ return INVITE_ADDR.slice(0,6) + '...' + INVITE_ADDR.slice(-4); }
 
+/* True only after LiveChain actually connects. Preset fiction (inviter
+   names, circle name) must never render over a real circle (F-4),
+   whether the app arrived via invite link or was opened bare. */
+let LIVE_ACTIVE = false;
+
 /* ethers loads as a deferred script, which runs AFTER this inline
    script parses. On a cold load window.ethers is therefore absent
    here, and LiveChain would throw before the library ever arrives.
@@ -1765,6 +1784,7 @@ function ethersReady(timeoutMs){
     }
     try {
       chain = await LiveChain(LIVE);
+      LIVE_ACTIVE = true;
       const ribbon = document.querySelector('.demo-ribbon');
       if (ribbon) ribbon.remove();
     } catch (e) {
