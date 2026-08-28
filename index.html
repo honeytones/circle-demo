@@ -901,7 +901,20 @@ async function LiveChain(cfg){
   }
 
   await refresh();
-  setInterval(async () => { try { await refresh(); render(); } catch {} }, 15_000);
+  /* F-6: keep polling data, but only repaint when something actually
+     changed, and never while the user is inside a sub-screen flow.
+     Changes seen during a sub-screen are not lost: every way back to a
+     top-level screen calls render(), which reads the latest snapshot. */
+  let lastRenderedJson = JSON.stringify(snap);
+  setInterval(async () => {
+    try {
+      await refresh();
+      const j = JSON.stringify(snap);
+      const changed = j !== lastRenderedJson;
+      lastRenderedJson = j;
+      if (changed && !SUBSCREEN) render();
+    } catch {}
+  }, 15_000);
 
   const amount = () => E.parseUnits(String(snap.contribution), decimals);
 
@@ -1225,7 +1238,16 @@ function wireShare(){
   if(cp) cp.onclick = () => copyText(msgInvite(chain.getCircle()));
 }
 
+/* F-6: sub-screens (Pay, Safety, FAQ, backup words, approve, paid-stamp)
+   are entered by direct calls and live outside render()'s state machine.
+   The 15s live poll must never repaint over them mid-flow — it yanked a
+   user off the Pay screen in rehearsal. Each sub-screen sets SUBSCREEN;
+   every route back to a top-level screen goes through render(), which
+   clears it. The poll also skips repainting when the snapshot has not
+   changed, which removes the visible blink on top-level screens. */
+let SUBSCREEN = false;
 function render(){
+  SUBSCREEN = false;
   const c = chain.getCircle();
   /* header is the shared wordmark now (v2); circle name lives in screen copy */
   if(!c.joined) return screenJoin(c);
@@ -1442,6 +1464,7 @@ function stampCard(c){
 
 /* ---------- 3. Confirm & pay ---------- */
 function screenConfirm(c){
+  SUBSCREEN = true; // F-6: shield from the live poll
   main.innerHTML = `
   <section class="screen active">
     <h2>Pay your share</h2>
@@ -1465,6 +1488,7 @@ function screenConfirm(c){
 }
 
 function screenPaidStamp(shareMsg){
+  SUBSCREEN = true; // F-6: shield from the live poll
   main.innerHTML = `
   <section class="screen active center">
     <div class="bigstamp">✓</div>
@@ -1547,6 +1571,7 @@ function screenDone(c){
 
 /* ---------- questions ---------- */
 function screenFaq(c){
+  SUBSCREEN = true; // F-6: shield from the live poll
   const TG = `<a class="tglink" href="https://t.me/tappyoak" target="_blank" rel="noopener">Message support on Telegram \u203a</a>`;
   const qa = [
     ["Who holds the money?",
@@ -1586,6 +1611,7 @@ function screenFaq(c){
 
 /* ---------- safety: your circle has your back ---------- */
 function screenSafety(c){
+  SUBSCREEN = true; // F-6: shield from the live poll
   const s = chain.getSafety();
   const others = c.members.map((n,i)=>({n,i})).filter(m=>m.i!==c.you);
   /* Guardian floor: recovery needs a real strict majority quorum. One guardian
@@ -1635,6 +1661,7 @@ function screenSafety(c){
 }
 
 function screenProtected(c, n){
+  SUBSCREEN = true; // F-6: shield from the live poll
   main.innerHTML = `
   <section class="screen active center">
     <div class="bigstamp">✓</div>
@@ -1646,6 +1673,7 @@ function screenProtected(c, n){
 }
 
 function screenBackupWords(c){
+  SUBSCREEN = true; // F-6: shield from the live poll
   const s = chain.getSafety();
   main.innerHTML = `
   <section class="screen active">
@@ -1661,6 +1689,7 @@ function screenBackupWords(c){
 
 /* ---------- approve a friend's new phone ---------- */
 function screenApprove(c){
+  SUBSCREEN = true; // F-6: shield from the live poll
   const s = chain.getSafety();
   const r = s.recovery;
   if(!r){ render(); return; }
