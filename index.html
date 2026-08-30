@@ -575,6 +575,7 @@ function DemoChain(){
       paid: state.paid,
       joined: state.joined,
       completed: state.completed,
+      active: true, /* N-1: demo circles have no Joining phase; always payable */
       pot: state.contribution*state.size,
       balance: state.balance,
       recipient: state.round<state.size ? state.round : null,
@@ -730,9 +731,23 @@ async function LiveChain(cfg){
   // social recovery ships — a lost phone is a lost key.
 
   async function post(url, body){
-    const r = await fetch(url, {method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify(body)});
-    const j = await r.json();
-    if(!r.ok) throw new Error(j.error || 'request failed');
+    /* N-2: a hung network/relayer used to mean "Joining…" forever, with a
+       reload as the only way out. Abort after 15s into the same retryable
+       banner path (F-7). Also surface the relayer's decoded revert reason
+       (409 {error, reason} since the N-3 hardening) instead of a generic
+       "request failed". */
+    const ctl = new AbortController();
+    const timer = setTimeout(() => ctl.abort(), 15_000);
+    let r;
+    try {
+      r = await fetch(url, {method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify(body), signal: ctl.signal});
+    } catch(e){
+      throw new Error(e && e.name === 'AbortError'
+        ? 'no answer from the network after 15 seconds'
+        : 'network problem');
+    } finally { clearTimeout(timer); }
+    const j = await r.json().catch(() => ({}));
+    if(!r.ok) throw new Error(j.reason || j.error || 'request failed');
     return j;
   }
 
@@ -777,10 +792,18 @@ async function LiveChain(cfg){
     // CRITICAL: batchDigest is already EthSignedMessage-prefixed. Sign it RAW.
     // owner.signMessage(digest) would prefix twice and fail verification.
     const sig = E.Signature.from(owner.signingKey.sign(digest)).serialized;
-    await post(cfg.relayerUrl + '/relay', {
+    const out = await post(cfg.relayerUrl + '/relay', {
       account, targets, datas, signature: sig,
       values: values.map(v => v.toString()),
     });
+    /* Since N-3 the relayer answers 202 {txHash, mined:false} when the
+       receipt is slow rather than hanging. That is SUBMITTED, not failed —
+       throwing here would show a "your money has not moved" banner that may
+       be false. Give the chain a beat; refresh()/the F-6 poll settle the
+       screen from real state. */
+    if(out && out.mined === false){
+      await new Promise(resolve => setTimeout(resolve, 2000));
+    }
   }
 
   /* ---- state snapshot the screens render from ---- */
@@ -890,6 +913,7 @@ async function LiveChain(cfg){
       contribution, pot: contribution * size,
       period: pl >= 6*86400 ? 'week' : pl >= 86400 ? 'day' : 'round',
       joined: Boolean(joined), completed: state === 2,
+      active: state === 1, /* N-1: Pay is only real once the circle is Active */
       balance: Number(E.formatUnits(bal, decimals)),
       recipient: state === 1 && round < size ? round : null, // rotation order = payout order
       daysLeft: Math.max(0, Math.ceil(secsLeft / 86400)),
@@ -1355,9 +1379,15 @@ function screenHome(c, youPaid){
     ${demoPanel()}
   </section>`;
   const broke = !youPaid && c.balance < c.contribution;
+  /* N-1: on a LIVE circle that is still Joining, contribute() is a doomed
+     revert (surfaced as a generic banner pre-fix). Don't offer it: show an
+     honest waiting state until state == Active. Demo sets active:true. */
+  const waiting = c.active === false;
   const payBtn = youPaid
     ? `<button class="pay" disabled><span class="lbl">Paid for this ${c.period} \u2713</span></button>`
-    : broke
+    : waiting
+      ? `<button class="pay" disabled><span class="lbl">Waiting for everyone to join \u2026</span></button>`
+      : broke
       ? `<button class="pay" disabled><span class="lbl">Add money first, you have ${'$'+c.balance}</span></button>`
       : `<button class="pay" id="act"><span class="lbl">Pay this ${c.period}</span><span class="amt">${'$'+c.contribution}</span></button>`;
   actionbar.innerHTML = `<div class="v2 vfoot">
@@ -1485,6 +1515,7 @@ function stampCard(c){
 
 /* ---------- 3. Confirm & pay ---------- */
 function screenConfirm(c){
+  if(c.active === false) return render(); /* N-1: never confirm-pay a circle that isn't Active */
   SUBSCREEN = true; // F-6: shield from the live poll
   main.innerHTML = `
   <section class="screen active">
