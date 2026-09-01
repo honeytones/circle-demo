@@ -821,6 +821,23 @@ async function LiveChain(cfg){
     })[c]);
   }
 
+  /* N-12: members with no deployed code (EOAs like a cast-driven organizer,
+     or CREATE2 accounts that have not acted yet) cannot answer the safety
+     ABI — eth_call returns "0x" and ethers throws BAD_DATA. That spammed a
+     console.warn every 15s poll and wasted RPC. Cache code-presence:
+     positives are permanent (accounts here never lose code), negatives are
+     rechecked only on periodic ticks, because a counterfactual account can
+     gain code the first time it acts. */
+  const hasCodeSet = new Set(), codelessSet = new Set(); // lowercased addrs
+  let safetyScanN = 0;
+  async function scannable(addr, recheck){
+    const a = addr.toLowerCase();
+    if(hasCodeSet.has(a)) return true;
+    if(codelessSet.has(a) && !recheck) return false;
+    if(await provider.getCode(addr) === '0x'){ codelessSet.add(a); return false; }
+    codelessSet.delete(a); hasCodeSet.add(a); return true;
+  }
+
   async function refresh(){
     const [stateN, roundN, sizeN, contribWei, roundStart, periodLen] = await Promise.all([
       circle.state(), circle.currentRound(), circle.circleSize(),
@@ -882,27 +899,37 @@ async function LiveChain(cfg){
     ];
     let safety = { guardians: null, recovery: null, phrase: store.getItem(PHRASE_SLOT) || '' };
     try {
-      const mine = new E.Contract(account, ACCT_SAFETY_ABI, provider);
-      const gs = await mine.guardians();
-      if(gs.length) safety.guardians = gs.map(g => members.findIndex(a => a.toLowerCase() === g.toLowerCase())).filter(i => i >= 0);
+      const recheck = (safetyScanN++ % 40) === 0; // N-12: ~10 min self-heal cadence at 15s polls
+      if(await scannable(account, recheck)){
+        const mine = new E.Contract(account, ACCT_SAFETY_ABI, provider);
+        const gs = await mine.guardians();
+        if(gs.length) safety.guardians = gs.map(g => members.findIndex(a => a.toLowerCase() === g.toLowerCase())).filter(i => i >= 0);
+      }
       // scan fellow members for a pending recovery I could approve
       for(let i = 0; i < size; i++){
         if(i === you) continue;
-        const fa = new E.Contract(members[i], ACCT_SAFETY_ABI, provider);
-        const proposed = await fa.proposedOwner();
-        if(proposed !== E.ZeroAddress){
-          const [appr, need, readyAt, iApproved] = await Promise.all([
-            fa.recoveryApprovals(), fa.approvalsNeeded(), fa.recoveryReadyAt(),
-            fa.approvedRecovery(account),
-          ]);
-          safety.recovery = {
-            memberIdx: i, newOwner: proposed,
-            approvals: Number(appr), needed: Number(need),
-            youApproved: Boolean(iApproved),
-            waitDays: Number(readyAt) > 0
-              ? Math.max(0, Math.ceil((Number(readyAt) - Date.now()/1000) / 86400)) : null,
-          };
-          break; // one at a time is enough for the UI
+        if(!(await scannable(members[i], recheck))) continue; // N-12: skip codeless members
+        try {
+          const fa = new E.Contract(members[i], ACCT_SAFETY_ABI, provider);
+          const proposed = await fa.proposedOwner();
+          if(proposed !== E.ZeroAddress){
+            const [appr, need, readyAt, iApproved] = await Promise.all([
+              fa.recoveryApprovals(), fa.approvalsNeeded(), fa.recoveryReadyAt(),
+              fa.approvedRecovery(account),
+            ]);
+            safety.recovery = {
+              memberIdx: i, newOwner: proposed,
+              approvals: Number(appr), needed: Number(need),
+              youApproved: Boolean(iApproved),
+              waitDays: Number(readyAt) > 0
+                ? Math.max(0, Math.ceil((Number(readyAt) - Date.now()/1000) / 86400)) : null,
+            };
+            break; // one at a time is enough for the UI
+          }
+        } catch(e){
+          /* N-12: before this catch existed, ONE failing member aborted the
+             whole loop — a pending recovery on anyone after it went unseen. */
+          console.warn('safety scan (member ' + i + '):', e.message);
         }
       }
     } catch(e){ console.warn('safety scan:', e.message); }
