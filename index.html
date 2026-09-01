@@ -1749,14 +1749,29 @@ function screenSafety(c){
   </section>`;
   actionbar.innerHTML = s.guardians || !gOK
     ? `<button class="btn btn-quiet" id="back">Back to the circle</button>`
-    : `<button class="btn btn-primary" id="act">Protect with my circle (${others.length} people)</button>
+    : `<p class="sub" id="protect-err" style="display:none;color:var(--miss);margin:0 0 8px;text-align:center"></p>
+       <button class="btn btn-primary" id="act">Protect with my circle (${others.length} people)</button>
        <button class="btn btn-quiet" id="back">Not now</button>`;
   document.getElementById('back').onclick = render;
   const act = document.getElementById('act');
   if(act) act.onclick = async ()=>{
     if(!gOK) return; /* floor invariant lives next to the dangerous call */
-    await chain.setGuardians(others.map(m=>m.i));
-    screenProtected(c, others.length);
+    /* N-14b: this relayed action failed SILENTLY in rehearsal — the 403
+       ("target not sponsored", the N-14a whitelist gap) died as an unhandled
+       rejection and the button just did nothing. Same treatment as F-7 Join:
+       pending state + visible, retryable error. textContent keeps any
+       relayer-supplied message inert as markup. */
+    const err = document.getElementById('protect-err');
+    act.disabled = true; act.textContent = 'Asking your circle\u2026';
+    err.style.display = 'none';
+    try {
+      await chain.setGuardians(others.map(m=>m.i));
+      screenProtected(c, others.length);
+    } catch(e){
+      act.disabled = false; act.textContent = `Protect with my circle (${others.length} people)`;
+      err.textContent = 'Could not set up protection: ' + ((e && e.message) ? e.message : 'network problem') + '. Try again in a moment.';
+      err.style.display = 'block';
+    }
   };
   document.getElementById('backup-row').onclick = ()=>screenBackupWords(c);
 }
@@ -1807,12 +1822,25 @@ function screenApprove(c){
     <p class="sub" style="margin-top:10px">The 3 day wait means if ${who} still has their old phone, they can stop this, so a mistake here can't cost them anything.</p>
   </section>`;
   actionbar.innerHTML = `
+    <p class="sub" id="approve-err" style="display:none;color:var(--miss);margin:0 0 8px;text-align:center"></p>
     <button class="btn btn-primary" id="act">Yes, it's really ${who}</button>
     <button class="btn btn-quiet" id="back">Not now</button>`;
   document.getElementById('back').onclick = render;
-  document.getElementById('act').onclick = async ()=>{
-    await chain.approveRecovery();
-    render();
+  const act = document.getElementById('act');
+  act.onclick = async ()=>{
+    /* N-14b: same silent-failure class as the protect button — a relayer
+       rejection here must be visible and retryable, not a dead click. */
+    const err = document.getElementById('approve-err');
+    act.disabled = true; act.textContent = 'Sending your yes\u2026';
+    err.style.display = 'none';
+    try {
+      await chain.approveRecovery();
+      render();
+    } catch(e){
+      act.disabled = false; act.textContent = `Yes, it's really ${who}`;
+      err.textContent = 'Could not send your approval: ' + ((e && e.message) ? e.message : 'network problem') + '. Try again in a moment.';
+      err.style.display = 'block';
+    }
   };
 }
 
