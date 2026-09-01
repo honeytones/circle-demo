@@ -1887,11 +1887,62 @@ function screenUnknownKey(c){
   <section class="screen active v2">
     <div class="big">This circle doesn't know this device</div>
     <p class="sub">This device's key is not one of the members of this circle. Two common reasons: this link was meant for someone else, or this device was a member before but lost its saved key \u2014 that can happen when the browser clears its data.</p>
-    <p class="sub">If you were a member here, your money and your seat are still safe in the circle. Ask your circle about recovering your account.</p>
+    <p class="sub">If you were a member here, your money and your seat are still safe in the circle. If you wrote down your backup words, you can let yourself back in below. Otherwise, ask your circle about recovering your account.</p>
     ${addr ? `<p class="sub" style="opacity:.55;font-size:12px">This device's account: ${addr} \u00b7 your organizer can check it against the member list</p>` : ''}
   </section>`;
-  actionbar.innerHTML = `<div class="v2 vfoot"><button class="pay" id="act"><span class="lbl">Check again</span></button></div>`;
+  actionbar.innerHTML = `<div class="v2 vfoot">
+    <button class="pay" id="restore"><span class="lbl">Restore from backup words</span></button>
+    <button class="btn btn-quiet" id="act" style="width:100%;margin-top:6px">Check again</button>
+  </div>`;
+  document.getElementById('restore').onclick = () => screenRestore(c);
   document.getElementById('act').onclick = () => location.reload();
+}
+
+/* N-11: the door the backup words promise. Boot is mint-or-load only, so a
+   lost phone stayed stranded while the safety screen promised "a second way
+   back in". This screen accepts the phrase, derives the same key
+   (ethers Wallet.fromPhrase \u2014 verified in the session-17 drill to yield
+   the identical key), writes the boot slots and reloads; the normal boot
+   path then finds the restored key. Slot names are string literals here
+   because KEY_SLOT/PHRASE_SLOT are scoped inside LiveChain \u2014 they must
+   stay in lockstep with the constants there. */
+function screenRestore(c){
+  SUBSCREEN = true; // F-6: shield from the live poll while the user types
+  main.innerHTML = `
+  <section class="screen active v2">
+    <div class="big">Restore from backup words</div>
+    <p class="sub">Type your backup words in order, with a space between each. Nobody else should see this screen \u2014 anyone with these words can open your savings.</p>
+    <textarea id="phrase" rows="3" autocapitalize="none" autocomplete="off" autocorrect="off" spellcheck="false"
+      style="width:100%;box-sizing:border-box;margin-top:10px;padding:12px;border-radius:14px;border:1px solid var(--line-2);background:var(--card);color:var(--ink);font-family:var(--body);font-size:16px;line-height:1.6"></textarea>
+    <p class="sub" id="restore-err" style="display:none;color:var(--miss)"></p>
+    <p class="sub" style="opacity:.55;font-size:12px">Restoring replaces the key currently on this device.</p>
+  </section>`;
+  actionbar.innerHTML = `<div class="v2 vfoot">
+    <button class="pay" id="act"><span class="lbl">Let me back in</span></button>
+    <button class="btn btn-quiet" id="back" style="width:100%;margin-top:6px">Back</button>
+  </div>`;
+  document.getElementById('back').onclick = render;
+  document.getElementById('act').onclick = () => {
+    const err = document.getElementById('restore-err');
+    const show = (m) => { err.textContent = m; err.style.display = ''; };
+    const raw = document.getElementById('phrase').value || '';
+    const words = raw.trim().toLowerCase().split(/\s+/).filter(Boolean);
+    const E = window.ethers;
+    if(!E){ show('Something went wrong loading this page. Reload and try again.'); return; }
+    if(words.length !== 12){
+      show(`That's ${words.length} word${words.length===1?'':'s'} \u2014 backup words are exactly 12. Check for missing or extra words.`);
+      return;
+    }
+    let w;
+    try { w = E.Wallet.fromPhrase(words.join(' ')); }
+    catch(e){
+      show("These words don't match a backup. Check each word's spelling and the order \u2014 every word matters.");
+      return;
+    }
+    store.setItem('circle-owner-key', w.privateKey);         // KEY_SLOT literal
+    store.setItem('circle-owner-phrase', w.mnemonic.phrase); // PHRASE_SLOT literal
+    location.reload(); // normal boot finds the restored key
+  };
 }
 
 /* Set when the app was opened through a valid ?c= invite AND the live
