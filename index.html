@@ -910,6 +910,10 @@ async function LiveChain(cfg){
     snap = {
       name: cfg.circleName || 'Your circle',
       members: names, you: Math.max(you, 0), size, round, paid,
+      /* N-5: you < 0 means this key is not in the rotation AT ALL —
+         the circle doesn't know this device. Keep the clamp above for
+         downstream indexing; the truth travels in its own field. */
+      stranger: you < 0, youAddr: account,
       contribution, pot: contribution * size,
       period: pl >= 6*86400 ? 'week' : pl >= 86400 ? 'day' : 'round',
       joined: Boolean(joined), completed: state === 2,
@@ -1277,6 +1281,9 @@ function render(){
   SUBSCREEN = false;
   const c = chain.getCircle();
   /* header is the shared wordmark now (v2); circle name lives in screen copy */
+  /* N-5: a key unknown to the circle must never see join/home/completed
+     UI implying membership (or a fake seat). Detect and say so. */
+  if(c.stranger) return screenUnknownKey(c);
   if(!c.joined) return screenJoin(c);
   if(c.completed) return screenDone(c);
   if(c.justGotPot) return screenPot(c);   // shown once, when the pot has actually LANDED
@@ -1867,6 +1874,23 @@ function screenCantReach(e){
     ${detail ? `<p class="sub" style="opacity:.55;font-size:12px">${detail}</p>` : ''}
   </section>`;
   actionbar.innerHTML = `<div class="v2 vfoot"><button class="pay" id="act"><span class="lbl">Try again</span></button></div>`;
+  document.getElementById('act').onclick = () => location.reload();
+}
+
+/* N-5: "this circle doesn't know you". After key loss the app used to mint a
+   fresh key silently and fake seat 0; joins then failed "not invited" behind
+   a generic banner. Now the mismatch is named, and the device's account is
+   shown so an organizer can check it against the member list. */
+function screenUnknownKey(c){
+  const addr = c.youAddr ? c.youAddr.slice(0,6) + '\u2026' + c.youAddr.slice(-4) : '';
+  main.innerHTML = `
+  <section class="screen active v2">
+    <div class="big">This circle doesn't know this device</div>
+    <p class="sub">This device's key is not one of the members of this circle. Two common reasons: this link was meant for someone else, or this device was a member before but lost its saved key \u2014 that can happen when the browser clears its data.</p>
+    <p class="sub">If you were a member here, your money and your seat are still safe in the circle. Ask your circle about recovering your account.</p>
+    ${addr ? `<p class="sub" style="opacity:.55;font-size:12px">This device's account: ${addr} \u00b7 your organizer can check it against the member list</p>` : ''}
+  </section>`;
+  actionbar.innerHTML = `<div class="v2 vfoot"><button class="pay" id="act"><span class="lbl">Check again</span></button></div>`;
   document.getElementById('act').onclick = () => location.reload();
 }
 
