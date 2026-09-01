@@ -1852,6 +1852,24 @@ function screenBadInvite(){
   actionbar.innerHTML = '';
 }
 
+/* N-4: a LIVE build must never fall back to the demo — a user could
+   "join" or "pay" a fake circle believing it's real money. Live-init
+   failure dead-ends here instead, with an honest retry. */
+function screenCantReach(e){
+  SUBSCREEN = true; // never let any repaint replace this screen
+  const ribbon = document.querySelector('.demo-ribbon');
+  if (ribbon) ribbon.remove();
+  const detail = e && e.message ? escapeHtml(String(e.message).slice(0,140)) : '';
+  main.innerHTML = `
+  <section class="screen active v2">
+    <div class="big">Can't reach your circle</div>
+    <p class="sub">This page could not connect to your circle. Nothing has happened — no money has moved. Check your internet connection, then try again.</p>
+    ${detail ? `<p class="sub" style="opacity:.55;font-size:12px">${detail}</p>` : ''}
+  </section>`;
+  actionbar.innerHTML = `<div class="v2 vfoot"><button class="pay" id="act"><span class="lbl">Try again</span></button></div>`;
+  document.getElementById('act').onclick = () => location.reload();
+}
+
 /* Set when the app was opened through a valid ?c= invite AND the live
    wiring actually connected to that circle. screenJoin uses it to show
    the circle address (a concrete identity to verify) and to drop the
@@ -1903,10 +1921,9 @@ function ethersReady(timeoutMs){
       const ribbon = document.querySelector('.demo-ribbon');
       if (ribbon) ribbon.remove();
     } catch (e) {
-      console.error('LiveChain failed, staying in demo mode:', e);
-      /* the invite did not take effect; the demo screens must not
-         carry its address as if it had */
-      INVITE_ADDR = null;
+      console.error('LiveChain failed:', e);
+      screenCantReach(e); // N-4: never fall through to demo on a LIVE build
+      return;
     }
   }
   /* Preview convenience, demo mode only: opening the page with #home
