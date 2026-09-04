@@ -756,8 +756,55 @@ async function LiveChain(cfg){
      a fresh `zano-circle:onboard:<owner>:<ts>` message (see relayer.js). */
   const obMessage = `zano-circle:onboard:${owner.address}:${Date.now()}`;
   const obSignature = await owner.signMessage(obMessage);
-  const { account } = await post(cfg.relayerUrl + '/onboard',
+  const { account: onboarded } = await post(cfg.relayerUrl + '/onboard',
     { owner: owner.address, message: obMessage, signature: obSignature });
+
+  /* N-13: reconnect after recovery. /onboard answers accountFor(owner) — the
+     CREATE2 address of the INITIAL owner — so a key that became owner of an
+     existing account through guardian recovery onboarded to a fresh, empty
+     account and landed on the stranger screen even though owner() rotation
+     had succeeded (session-18 exhibit). Before trusting /onboard's answer:
+       1. a remembered override wins if that account still says
+          owner() == this key (stale overrides self-clear);
+       2. otherwise, if the onboarded account is not in this circle's
+          rotation, ask each member account that has code who its owner is —
+          a match binds this device to that seat and is remembered.
+     This runs BEFORE any screen exists, so the N-11 restore door is never
+     offered to a key that already owns a seat: post-recovery the OLD phrase
+     restores a dispossessed key. Any RPC trouble here falls back to the
+     onboarded account; nothing is written unless owner() matched. */
+  const OVERRIDE_SLOT = 'circle-account-override';
+  const OWNER_ABI = ['function owner() view returns (address)'];
+  async function ownedByMe(addr){
+    try {
+      if(await provider.getCode(addr) === '0x') return false; // EOA or counterfactual
+      const o = await new E.Contract(addr, OWNER_ABI, provider).owner();
+      return o.toLowerCase() === owner.address.toLowerCase();
+    } catch { return false; }
+  }
+  async function reconnect(fresh){
+    const remembered = store.getItem(OVERRIDE_SLOT);
+    if(remembered){
+      if(await ownedByMe(remembered)) return remembered;
+      store.removeItem(OVERRIDE_SLOT); // rotated away again, or another chain
+    }
+    try {
+      const c = new E.Contract(cfg.circleAddr, CIRCLE_ABI, provider);
+      const n = Number(await c.circleSize());
+      const rotation = [];
+      for(let i = 0; i < n; i++) rotation.push(await c.rotation(i));
+      if(rotation.some(a => a.toLowerCase() === fresh.toLowerCase())) return fresh;
+      for(const m of rotation){
+        if(await ownedByMe(m)){
+          store.setItem(OVERRIDE_SLOT, m);
+          console.info('[circle] N-13: this key owns member account', m, '(recovered); binding to it instead of', fresh);
+          return m;
+        }
+      }
+    } catch(e){ console.warn('N-13 reconnect check skipped:', e.message); }
+    return fresh;
+  }
+  const account = await reconnect(onboarded);
   console.info('[circle] your account (fUSD deposit address on ZEL):', account);
 
   const circle = new E.Contract(cfg.circleAddr, CIRCLE_ABI, provider);
