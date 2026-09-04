@@ -1848,6 +1848,9 @@ function screenSafety(c){
         <span class="k">Backup words</span><span class="v">Show ›</span>
       </div>
       <p class="sub" style="margin-top:8px">A second way back in, just for you. Write them somewhere safe.</p>
+      <div class="row" id="restore-row" style="cursor:pointer;margin-top:10px">
+        <span class="k">Have backup words from another phone?</span><span class="v">Restore \u203a</span>
+      </div>
     </div>
   </section>`;
   actionbar.innerHTML = s.guardians || !gOK
@@ -1877,6 +1880,9 @@ function screenSafety(c){
     }
   };
   document.getElementById('backup-row').onclick = ()=>screenBackupWords(c);
+  /* N-11b: the safety screen promised "a second way back in" but the only
+     door (N-11) was on the stranger screen. Same door, reachable here. */
+  document.getElementById('restore-row').onclick = ()=>screenRestore(c);
 }
 
 function screenProtected(c, n){
