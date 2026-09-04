@@ -231,6 +231,8 @@ h2{font-family:var(--display);font-size:22px;font-weight:800;line-height:1.15}
 .status .small{margin-top:6px;font-size:13.5px;color:var(--on-indigo-soft)}
 .status.gold{background:linear-gradient(135deg, var(--pot-gold), var(--pot-gold-deep));color:#3A2705}
 .status.gold .small{color:#5C400E}
+.status.red{background:var(--miss);color:#fff}
+.status.red .small{color:rgba(255,255,255,.85)}
 
 /* ---------- big numbers ---------- */
 .hero-amount{
@@ -653,6 +655,7 @@ function DemoChain(){
       r.approvals++;
       if(r.approvals >= r.needed) r.waitDays = 3; // veto window starts
     },
+    async cancelRecovery(){ state.selfRecovery = null; }, // N-16: demo no-op
     /* demo-only controls */
     _friendLosesPhone(){
       state.recovery = { memberIdx:3, approvals:2, needed:3, youApproved:false, waitDays:null };
@@ -944,13 +947,28 @@ async function LiveChain(cfg){
       'function recoveryReadyAt() view returns (uint256)',
       'function approvedRecovery(address) view returns (bool)',
     ];
-    let safety = { guardians: null, recovery: null, phrase: store.getItem(PHRASE_SLOT) || '' };
+    let safety = { guardians: null, recovery: null, selfRecovery: null, phrase: store.getItem(PHRASE_SLOT) || '' };
     try {
       const recheck = (safetyScanN++ % 40) === 0; // N-12: ~10 min self-heal cadence at 15s polls
       if(await scannable(account, recheck)){
         const mine = new E.Contract(account, ACCT_SAFETY_ABI, provider);
         const gs = await mine.guardians();
         if(gs.length) safety.guardians = gs.map(g => members.findIndex(a => a.toLowerCase() === g.toLowerCase())).filter(i => i >= 0);
+        /* N-16: the owner must not be blind to a recovery on their OWN
+           account. Read it here so the Home card and in-app veto exist. */
+        try {
+          const proposed = await mine.proposedOwner();
+          if(proposed !== E.ZeroAddress){
+            const [appr, need, readyAt] = await Promise.all([
+              mine.recoveryApprovals(), mine.approvalsNeeded(), mine.recoveryReadyAt(),
+            ]);
+            safety.selfRecovery = {
+              newOwner: proposed, approvals: Number(appr), needed: Number(need),
+              waitDays: Number(readyAt) > 0
+                ? Math.max(0, Math.ceil((Number(readyAt) - Date.now()/1000) / 86400)) : null,
+            };
+          }
+        } catch(e){ console.warn('safety scan (self):', e.message); }
       }
       // scan fellow members for a pending recovery I could approve
       for(let i = 0; i < size; i++){
@@ -1062,6 +1080,14 @@ async function LiveChain(cfg){
       await signAndRelay([
         { to: friend, data: fa.interface.encodeFunctionData('approveRecovery', [r.newOwner]) },
       ]);
+      await refresh();
+    },
+    async cancelRecovery(){
+      /* N-16: owner veto as a self-call. Sponsored: own account is a
+         whitelisted target since N-14a; no relayer change. */
+      if(!snap._safety.selfRecovery) return;
+      const me = new E.Contract(account, ['function cancelRecovery()'], provider);
+      await signAndRelay([{ to: account, data: me.interface.encodeFunctionData('cancelRecovery', []) }]);
       await refresh();
     },
     _reset(){ location.reload(); },
@@ -1445,7 +1471,7 @@ function screenHome(c, youPaid){
   const cap = w => w.charAt(0).toUpperCase()+w.slice(1);
   main.innerHTML = `
   <section class="screen active v2 v2home">
-    ${recoveryAlert(c, s)}
+    ${selfRecoveryAlert(c, s)}${recoveryAlert(c, s)}
     <div class="pot">
       <div class="eyebrow">This ${c.period}'s pot</div>
       <div class="amount">$${c.pot}<small>fUSD</small></div>
@@ -1485,6 +1511,19 @@ function screenHome(c, youPaid){
   if(sr) sr.onclick = ()=>screenSafety(c);
   const ra = document.getElementById('recovery-cta');
   if(ra) ra.onclick = ()=>screenApprove(c);
+  const va = document.getElementById('veto-cta');
+  if(va) va.onclick = async ()=>{
+    /* N-16: the owner's veto, in-app. Same visible-failure rule as N-14b. */
+    const err = document.getElementById('veto-err');
+    va.disabled = true; va.textContent = 'Stopping it\u2026';
+    err.style.display = 'none';
+    try { await chain.cancelRecovery(); render(); }
+    catch(e){
+      va.disabled = false; va.textContent = 'That\u2019s not me \u2014 stop it';
+      err.textContent = 'Could not stop it: ' + ((e && e.message) ? e.message : 'network problem') + '. Try again in a moment.';
+      err.style.display = 'block';
+    }
+  };
   const fl = document.getElementById('faq-link');
   if(fl) fl.onclick = ()=>screenFaq(c);
   wireShare();
@@ -1523,6 +1562,23 @@ function memberCard(c){
   return `<div class="stampcard">${rows}</div>`;
 }
 
+/* N-16: red card when a recovery is pending on YOUR OWN account. Shown at
+   every stage (before and during the timelock) — the owner is never blind. */
+function selfRecoveryAlert(c, s){
+  const r = s && s.selfRecovery;
+  if(!r) return '';
+  const to = r.newOwner.slice(0,6) + '\u2026' + r.newOwner.slice(-4);
+  const when = r.waitDays !== null
+    ? `It goes through in ${r.waitDays} day${r.waitDays===1?'':'s'} unless you stop it.`
+    : 'It needs more votes before anything happens.';
+  return `<div class="status red" style="margin-top:0">
+    <div class="big">Someone is trying to move your savings card</div>
+    <div class="small">A new phone (${to}) is asking to take over your account. ${r.approvals} of ${r.needed} circle members have said yes. ${when}</div>
+    <div class="small">Setting up a new phone yourself? Then leave this alone.</div>
+    <button class="btn btn-primary" id="veto-cta" style="margin-top:12px;min-height:48px;font-size:16px">That\u2019s not me \u2014 stop it</button>
+    <p class="sub" id="veto-err" style="display:none;color:#fff;margin:8px 0 0;text-align:center"></p>
+  </div>`;
+}
 /* Alert card when a fellow member's new phone needs your OK. */
 function recoveryAlert(c, s){
   const r = s && s.recovery;
