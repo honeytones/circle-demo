@@ -1934,7 +1934,8 @@ function screenTopUp(c){
     </div>
   </section>`;
   actionbar.innerHTML = `<button class="btn btn-primary" id="copy-addr">Copy address</button><button class="btn btn-quiet" id="back">Back to the circle</button>`;
-  try { drawQR(document.getElementById('topup-qr'), addr); } catch(e){ console.warn('qr:', e.message); }
+  // N-23: EIP-681 payload so phone cameras and wallets recognise it as an address (the box and Copy stay plain).
+  try { drawQR(document.getElementById('topup-qr'), 'ethereum:' + addr); } catch(e){ console.warn('qr:', e.message); }
   document.getElementById('copy-addr').onclick = ()=>copyText(addr);
   document.getElementById('back').onclick = render;
 }
