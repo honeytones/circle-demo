@@ -147,6 +147,10 @@ h2{font-family:var(--display);font-size:22px;font-weight:800;line-height:1.15}
 .money{font-variant-numeric:tabular-nums;font-weight:800}
 .fusdmark{height:.8em;width:.8em;vertical-align:-0.08em;margin-left:4px;border-radius:50%}
 .money small{font-size:.55em;font-weight:600;color:var(--ink-soft);margin-left:3px;letter-spacing:.04em}
+/* N-19 top-up screen */
+.qrbox{display:flex;justify-content:center;padding:6px 0 4px}
+.qrbox canvas{width:196px;height:196px;border-radius:10px}
+.addrbox{font-family:ui-monospace,SFMono-Regular,Menlo,monospace;font-size:13px;line-height:1.55;word-break:break-all;overflow-wrap:anywhere;text-align:center;padding:10px 12px;border:1.5px dashed var(--calico-dim);border-radius:10px;margin-top:10px;user-select:all}
 
 /* ---------- the stamp card (signature element) ---------- */
 .stampcard{
@@ -1480,7 +1484,7 @@ function screenHome(c, youPaid){
     <div class="seclabel"><span class="t">Who's paid</span><span class="r">${cap(c.period)} ${c.round+1} of ${c.size} \u00b7 <button class="sharelink" id="share-card" aria-label="Share this card">Share \u203a</button></span></div>
     ${memberCard(c)}
     <div class="infocard">
-      <div class="kv"><span class="k">Your savings balance</span><span class="v">${fmt$(c.balance)}</span></div>
+      <div class="kv" id="topup-row"${c.youAddr ? ' style="cursor:pointer"' : ''}><span class="k">Your savings balance</span><span class="v">${fmt$(c.balance)}${c.youAddr ? ' <small>Top up \u203a</small>' : ''}</span></div>
       <div class="kv" id="safety-row" style="cursor:pointer"><span class="k">If you lose your phone</span><span class="v">${s.guardians ? `Your circle has your back \u2713` : `Not protected yet \u203a`}</span></div>
     </div>
     ${demoPanel()}
@@ -1509,6 +1513,9 @@ function screenHome(c, youPaid){
   if(act) act.onclick = ()=>screenConfirm(c);
   const sr = document.getElementById('safety-row');
   if(sr) sr.onclick = ()=>screenSafety(c);
+  /* N-19: the balance row is the door to the top-up screen (live only). */
+  const tr = document.getElementById('topup-row');
+  if(tr && c.youAddr) tr.onclick = ()=>screenTopUp(c);
   const ra = document.getElementById('recovery-cta');
   if(ra) ra.onclick = ()=>screenApprove(c);
   const va = document.getElementById('veto-cta');
@@ -1910,6 +1917,157 @@ function screenBackupWords(c){
   </section>`;
   actionbar.innerHTML = `<button class="btn btn-primary" id="act">I wrote them down</button>`;
   document.getElementById('act').onclick = ()=>screenSafety(c);
+}
+
+/* ---------- N-19: top up (deposit address + QR) ---------- */
+function screenTopUp(c){
+  SUBSCREEN = true; // F-6: shield from the live poll
+  const addr = c.youAddr;
+  main.innerHTML = `
+  <section class="screen active">
+    <h2>Top up your savings</h2>
+    <p class="sub">Send fUSD to your savings card. It is the same address every time, so you can save it in the wallet you send from.</p>
+    <div class="card">
+      <div class="qrbox"><canvas id="topup-qr" width="1" height="1" aria-label="Your savings card address as a QR code"></canvas></div>
+      <div class="addrbox" id="topup-addr">${escapeHtml(addr)}</div>
+      <p class="sub" style="margin-top:10px">Money shows up in your balance on its own. Only send fUSD here.</p>
+    </div>
+  </section>`;
+  actionbar.innerHTML = `<button class="btn btn-primary" id="copy-addr">Copy address</button><button class="btn btn-quiet" id="back">Back to the circle</button>`;
+  try { drawQR(document.getElementById('topup-qr'), addr); } catch(e){ console.warn('qr:', e.message); }
+  document.getElementById('copy-addr').onclick = ()=>copyText(addr);
+  document.getElementById('back').onclick = render;
+}
+function drawQR(cv, text){
+  const m = qrMatrix(text), N = m.length, Q = 4, S = 8; // 4-module quiet zone, drawn in
+  cv.width = cv.height = (N + 2*Q) * S;
+  const x = cv.getContext('2d');
+  x.fillStyle = '#FAF6EE'; x.fillRect(0, 0, cv.width, cv.height);
+  x.fillStyle = '#1B2A6B';
+  for(let r=0;r<N;r++) for(let c=0;c<N;c++) if(m[r][c]) x.fillRect((c+Q)*S, (r+Q)*S, S, S);
+}
+/* ---- QR code, drawn by hand (no libraries, works offline) ----
+   Byte mode, error level M, versions 1-6 (up to 108 bytes). Returns a
+   square array of 0/1 modules. Used by the top-up screen so a friend's
+   wallet can scan the savings-card address instead of retyping it. */
+function qrMatrix(text){
+  const bytes = []; for(const ch of new TextEncoder().encode(text)) bytes.push(ch);
+  // [total codewords, data codewords per block, ec codewords per block, blocks]
+  const SPEC = {1:[26,16,10,1],2:[44,28,16,1],3:[70,44,26,1],4:[100,32,18,2],5:[134,43,24,2],6:[172,27,16,4]};
+  const ALIGN = {1:[],2:[6,18],3:[6,22],4:[6,26],5:[6,30],6:[6,34]};
+  let v = 1; while(v <= 6 && SPEC[v][1]*SPEC[v][3] < bytes.length + 2) v++;
+  if(v > 6) throw new Error('qr: too long');
+  const [total, dpb, ecpb, nb] = SPEC[v], dataLen = dpb*nb;
+
+  /* data bits */
+  const bits = [];
+  const put = (val, n) => { for(let i=n-1;i>=0;i--) bits.push((val>>i)&1); };
+  put(4,4); put(bytes.length,8); bytes.forEach(b=>put(b,8));
+  put(0, Math.min(4, dataLen*8 - bits.length));
+  while(bits.length % 8) bits.push(0);
+  const data = []; for(let i=0;i<bits.length;i+=8) data.push(parseInt(bits.slice(i,i+8).join(''),2));
+  for(let p=0; data.length<dataLen; p++) data.push(p%2 ? 0x11 : 0xEC);
+
+  /* GF(256) + Reed-Solomon */
+  const EXP = new Array(512), LOG = new Array(256);
+  for(let i=0,x=1;i<255;i++){ EXP[i]=x; LOG[x]=i; x<<=1; if(x&256) x^=0x11d; }
+  for(let i=255;i<512;i++) EXP[i]=EXP[i-255];
+  const mul = (a,b) => (a&&b) ? EXP[LOG[a]+LOG[b]] : 0;
+  let gen = [1];
+  for(let i=0;i<ecpb;i++){
+    const ng = new Array(gen.length+1).fill(0);
+    for(let j=0;j<gen.length;j++){ ng[j] ^= gen[j]; ng[j+1] ^= mul(gen[j], EXP[i]); }
+    gen = ng;
+  }
+  const blocks = [], ecs = [];
+  for(let b=0;b<nb;b++){
+    const d = data.slice(b*dpb, (b+1)*dpb);
+    const r = d.concat(new Array(ecpb).fill(0));
+    for(let i=0;i<dpb;i++){ const c = r[i]; if(c) for(let j=0;j<gen.length;j++) r[i+j] ^= mul(gen[j], c); }
+    blocks.push(d); ecs.push(r.slice(dpb));
+  }
+  const cw = [];
+  for(let i=0;i<dpb;i++) blocks.forEach(b=>cw.push(b[i]));
+  for(let i=0;i<ecpb;i++) ecs.forEach(e=>cw.push(e[i]));
+
+  /* module grid */
+  const N = 17 + 4*v;
+  const m = Array.from({length:N}, ()=>new Array(N).fill(0));
+  const fixed = Array.from({length:N}, ()=>new Array(N).fill(false));
+  const set = (r,c,val) => { m[r][c]=val; fixed[r][c]=true; };
+  function finder(r0,c0){
+    for(let r=-1;r<=7;r++) for(let c=-1;c<=7;c++){
+      const rr=r0+r, cc=c0+c; if(rr<0||cc<0||rr>=N||cc>=N) continue;
+      const on = r>=0&&r<=6&&c>=0&&c<=6 && (r===0||r===6||c===0||c===6 || (r>=2&&r<=4&&c>=2&&c<=4));
+      set(rr,cc,on?1:0);
+    }
+  }
+  finder(0,0); finder(0,N-7); finder(N-7,0);
+  for(let i=8;i<N-8;i++){ set(6,i,i%2===0?1:0); set(i,6,i%2===0?1:0); }
+  const al = ALIGN[v];
+  for(const ar of al) for(const ac of al){
+    if(fixed[ar][ac]) continue; // overlaps a finder
+    for(let r=-2;r<=2;r++) for(let c=-2;c<=2;c++) set(ar+r, ac+c, (Math.max(Math.abs(r),Math.abs(c))!==1)?1:0);
+  }
+  set(N-8,8,1);
+  for(let i=0;i<8;i++){ if(!fixed[8][i]) set(8,i,0); if(!fixed[i][8]) set(i,8,0); if(!fixed[8][N-1-i]) set(8,N-1-i,0); if(!fixed[N-1-i][8]) set(N-1-i,8,0); }
+  if(!fixed[8][8]) set(8,8,0);
+
+  /* place data, zigzag */
+  let bi = 0;
+  const allBits = []; cw.forEach(b=>{ for(let i=7;i>=0;i--) allBits.push((b>>i)&1); });
+  let up = true;
+  for(let col=N-1; col>0; col-=2){
+    if(col===6) col--;
+    for(let k=0;k<N;k++){
+      const row = up ? N-1-k : k;
+      for(const c of [col, col-1]){
+        if(fixed[row][c]) continue;
+        m[row][c] = bi < allBits.length ? allBits[bi] : 0; bi++;
+      }
+    }
+    up = !up;
+  }
+
+  /* masks + penalty */
+  const MASK = [
+    (r,c)=>(r+c)%2===0, (r,c)=>r%2===0, (r,c)=>c%3===0, (r,c)=>(r+c)%3===0,
+    (r,c)=>(Math.floor(r/2)+Math.floor(c/3))%2===0, (r,c)=>(r*c)%2+(r*c)%3===0,
+    (r,c)=>((r*c)%2+(r*c)%3)%2===0, (r,c)=>((r+c)%2+(r*c)%3)%2===0 ];
+  function formatBits(mask){
+    let f = (0<<3)|mask; // EC level M = 00
+    let g = f<<10;
+    for(let i=14;i>=10;i--) if(g&(1<<i)) g ^= 0x537<<(i-10);
+    return ((f<<10)|g) ^ 0x5412;
+  }
+  function apply(mask, grid){
+    const out = grid.map(r=>r.slice());
+    for(let r=0;r<N;r++) for(let c=0;c<N;c++) if(!fixed[r][c] && MASK[mask](r,c)) out[r][c]^=1;
+    const fb = formatBits(mask);
+    for(let i=0;i<15;i++){
+      const b = (fb>>(14-i))&1;
+      // around top-left
+      if(i<6) out[8][i]=b; else if(i<8) out[8][i+1]=b; else if(i===8) out[7][8]=b; else out[14-i][8]=b;
+      // split copy
+      if(i<7) out[N-1-i][8]=b; else out[8][N-15+i]=b;
+    }
+    return out;
+  }
+  function penalty(g){
+    let p=0;
+    for(let r=0;r<N;r++){ let run=1; for(let c=1;c<N;c++){ if(g[r][c]===g[r][c-1]){ run++; if(run===5) p+=3; else if(run>5) p++; } else run=1; } }
+    for(let c=0;c<N;c++){ let run=1; for(let r=1;r<N;r++){ if(g[r][c]===g[r-1][c]){ run++; if(run===5) p+=3; else if(run>5) p++; } else run=1; } }
+    for(let r=0;r<N-1;r++) for(let c=0;c<N-1;c++){ const s=g[r][c]+g[r][c+1]+g[r+1][c]+g[r+1][c+1]; if(s===0||s===4) p+=3; }
+    const pat=[1,0,1,1,1,0,1,0,0,0,0], pat2=[0,0,0,0,1,0,1,1,1,0,1];
+    const hit=(a,i,d)=>{ for(let k=0;k<11;k++){ const v = d?g[i][a+k]:g[a+k][i]; if(v!==pat[k]) break; if(k===10) return true; } for(let k=0;k<11;k++){ const v = d?g[i][a+k]:g[a+k][i]; if(v!==pat2[k]) break; if(k===10) return true; } return false; };
+    for(let i=0;i<N;i++) for(let a=0;a<=N-11;a++){ if(hit(a,i,true)) p+=40; if(hit(a,i,false)) p+=40; }
+    let dark=0; for(const r of g) for(const v of r) dark+=v;
+    const pct = dark*100/(N*N), k = Math.floor(Math.abs(pct-50)/5); p += k*10;
+    return p;
+  }
+  let best=null, bestP=Infinity;
+  for(let k=0;k<8;k++){ const g=apply(k,m); const p=penalty(g); if(p<bestP){ bestP=p; best=g; } }
+  return best;
 }
 
 /* ---------- approve a friend's new phone ---------- */
