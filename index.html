@@ -150,7 +150,7 @@ h2{font-family:var(--display);font-size:22px;font-weight:800;line-height:1.15}
 /* N-19 top-up screen */
 .qrbox{display:flex;justify-content:center;padding:6px 0 4px}
 .qrbox canvas{width:196px;height:196px;border-radius:10px}
-.addrbox{font-family:ui-monospace,SFMono-Regular,Menlo,monospace;font-size:13px;line-height:1.55;word-break:break-all;overflow-wrap:anywhere;text-align:center;padding:10px 12px;border:1.5px dashed var(--calico-dim);border-radius:10px;margin-top:10px;user-select:all}
+.addrbox{font-family:ui-monospace,SFMono-Regular,Menlo,monospace;font-size:11px;letter-spacing:-.01em;line-height:1.55;word-break:break-all;overflow-wrap:anywhere;text-align:center;padding:10px 8px;border:1.5px dashed var(--calico-dim);border-radius:10px;margin-top:10px;user-select:all}
 
 /* ---------- the stamp card (signature element) ---------- */
 .stampcard{
@@ -172,7 +172,7 @@ h2{font-family:var(--display);font-size:22px;font-weight:800;line-height:1.15}
 [data-theme="dark"] .sharebtn{color:#A9B8F5}
 .stamprow{
   display:grid;
-  grid-template-columns:64px 1fr;
+  grid-template-columns:minmax(0,1fr) auto;
   align-items:center;
   gap:10px;
   padding:7px 6px;
@@ -180,7 +180,7 @@ h2{font-family:var(--display);font-size:22px;font-weight:800;line-height:1.15}
 }
 .stamprow.current{background:var(--indigo-100)}
 .stamprow.past{opacity:.55}
-.stamprow .who{font-size:13.5px;font-weight:700;line-height:1.2}
+.stamprow .who{font-size:13.5px;font-weight:700;line-height:1.2;min-width:0;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
 .stamprow .who .pos{display:block;font-size:11px;color:var(--ink-soft);font-weight:600}
 .stamps{display:flex;gap:8px;flex-wrap:wrap}
 .stamp{
@@ -1322,11 +1322,11 @@ function cardImageBlob(c){
   const ly = rowsTop + c.size*rowH + 34;
   let lx = pad;
   function legend(kind, label){
-    stampAt(lx + 12, ly - 7, kind);
+    stampAt(lx + R, ly - 7, kind);
     x.fillStyle = P.soft;
     x.font = '600 20px system-ui, sans-serif';
-    x.fillText(label, lx + 32, ly);
-    lx += 32 + x.measureText(label).width + 40;
+    x.fillText(label, lx + 2*R + 10, ly);
+    lx += 2*R + 10 + x.measureText(label).width + 40;
   }
   legend('paid', 'paid'); legend('missed', 'missed'); legend('pot', 'pot');
 
@@ -1551,7 +1551,7 @@ function memberCard(c){
     const pos = gotPot ? `Got the pot \u00b7 ${c.period} ${mi+1}`
       : isCurrent ? `Collecting now \u00b7 ${c.period} ${mi+1}`
       : isYou ? `Your turn \u00b7 ${c.period} ${mi+1}`
-      : `${cap(c.period)} ${mi+1}`;
+      : `Collects \u00b7 ${c.period} ${mi+1}`;
     const stamps = [];
     for(let r=0;r<=c.round;r++){
       if(r===mi){ stamps.push(`<span class="stamp potcoin" title="${name}'s pot" aria-label="${name}'s pot ${c.period}">\u2605</span>`); continue; }
@@ -1724,7 +1724,7 @@ function screenPot(c){
       : `One member missed, but this circle is protected. ${PRESET.inviter}'s cover topped up the pot, so you still get every dollar. The miss is on their card, and they owe her now, not you.`)
     : landed < c.pot
       ? `Most of the circle paid this ${c.period}. Their contributions came straight to your wallet.`
-      : `The full pot from ${c.name}, ${c.period} ${c.you+1}. Sent straight to your wallet.`;
+      : `The full pot from ${c.name === 'Your circle' ? 'your circle' : c.name}, ${c.period} ${c.you+1}. Sent straight to your wallet.`;
   const next = c.completed ? ` That was the last pot, the circle is complete.` : ` Next ${c.period} it goes to ${recipientName(c)}.`;
   const topupRow = c.lastTopUp > 0
     ? `<div class="kv" style="padding:7px 0"><span class="k">Protection covered a miss</span><span class="v">+$${c.lastTopUp}</span></div>` : '';
@@ -1856,7 +1856,7 @@ function screenSafety(c){
       </div>
       <p class="sub" style="margin-top:8px">A second way back in, just for you. Write them somewhere safe.</p>
       <div class="row" id="restore-row" style="cursor:pointer;margin-top:10px">
-        <span class="k">Have backup words from another phone?</span><span class="v">Restore \u203a</span>
+        <span class="k">Have backup words from another phone?</span><span class="v" style="white-space:nowrap">Restore \u203a</span>
       </div>
     </div>
   </section>`;
