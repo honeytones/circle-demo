@@ -913,6 +913,10 @@ async function LiveChain(cfg){
     const you = members.findIndex(a => a.toLowerCase() === account.toLowerCase());
     const [joined, , paidNow] = you >= 0
       ? await circle.memberStatus(account) : [false, 0, false];
+    /* N-6: who has actually joined (only matters while state == Joining) */
+    const joinedFlags = state === 0
+      ? await Promise.all(members.map(a => circle.memberStatus(a).then(st => Boolean(st[0])).catch(() => false)))
+      : null;
 
     /* stamp-card history from events */
     const paid = Array.from({length:size}, () => Array(size).fill(null));
@@ -1012,7 +1016,7 @@ async function LiveChain(cfg){
       stranger: you < 0, youAddr: account,
       contribution, pot: contribution * size,
       period: pl >= 6*86400 ? 'week' : pl >= 86400 ? 'day' : 'round',
-      joined: Boolean(joined), completed: state === 2,
+      joined: Boolean(joined), joinedFlags, completed: state === 2,
       active: state === 1, /* N-1: Pay is only real once the circle is Active */
       balance: Number(E.formatUnits(bal, decimals)),
       recipient: state === 1 && round < size ? round : null, // rotation order = payout order
@@ -1413,7 +1417,7 @@ function screenJoin(c){
   const verifyNote = INVITE_ADDR
     ? `<div class="vnote">This invite link opened the circle at ${shortInvite()}. Check the address with your organizer before you join.</div>`
     : '';
-  const others = c.members.map((n,mi)=>({n,mi})).filter(o=>o.mi!==c.you);
+  const others = c.members.map((n,mi)=>({n,mi})).filter(o=>o.mi!==c.you && (!c.joinedFlags || c.joinedFlags[o.mi])); // N-6: joined, not invited
   main.innerHTML = `
   <section class="screen active v2 v2join">
     <div class="big">You're invited</div>
@@ -1436,7 +1440,7 @@ function screenJoin(c){
     <div class="seclabel"><span class="t">Who's already in</span><span class="r">${others.length} of ${c.size}</span></div>
     <div class="avrow">
       ${others.map(o=>`<div class="av" style="background:${AV_GRADS[o.mi%AV_GRADS.length]}">${o.n.charAt(0).toUpperCase()}</div>`).join('')}
-      <span class="more">+ you makes ${c.size}</span>
+      <span class="more">${others.length ? `+ you makes ${others.length+1}` : `No one yet \u2014 you\u2019d be first`}</span>
     </div>
   </section>`;
   actionbar.innerHTML = `<div class="v2 vfoot">
@@ -1497,7 +1501,7 @@ function screenHome(c, youPaid){
   const payBtn = youPaid
     ? `<button class="pay" disabled><span class="lbl">Paid for this ${c.period} \u2713</span></button>`
     : waiting
-      ? `<button class="pay" disabled><span class="lbl">Waiting for everyone to join \u2026</span></button>`
+      ? `<button class="pay" disabled><span class="lbl">${c.joinedFlags ? `Waiting for ${c.size - c.joinedFlags.filter(Boolean).length} more to join \u2026` : `Waiting for everyone to join \u2026`}</span></button>`
       : broke
       ? `<button class="pay" disabled><span class="lbl">Add money first, you have ${'$'+c.balance}</span></button>`
       : `<button class="pay" id="act"><span class="lbl">Pay this ${c.period}</span><span class="amt">${'$'+c.contribution}</span></button>`;
