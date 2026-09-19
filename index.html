@@ -1340,7 +1340,7 @@ function cardImageBlob(c){
   x.fillStyle = P.soft;
   x.font = '600 19px system-ui, sans-serif';
   x.textAlign = 'center';
-  x.fillText(PRESET.kicker + ' \u00b7 powered by Zano', W/2, ly + 60);
+  x.fillText('Zano Circle \u00b7 powered by Zano', W/2, ly + 60);   // (f): product name in the footer; the regional kicker stays in the caption
   x.textAlign = 'left';
 
   return new Promise(res => cv.toBlob(res, 'image/png'));
