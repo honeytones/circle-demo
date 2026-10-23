@@ -14,7 +14,7 @@ The failure mode of every savings circle is the same: the organizer holds the ca
 
 Every crypto attempt to fix this has died. WeTrust (Ethereum, 2017) is dormant and delisted. HaloFi, formerly GoodGhosting, is out of business and its repos are archived. Bloinx pivoted away and went quiet. The newer attempts on Stellar, Hedera and Sui repeat the same mistakes: they demand collateral from people who have none, match strangers at random, or turn reputation into a tradeable token.
 
-The only thing that works at scale is not crypto. Money Fellows in Egypt has over eight million users and charges up to 16 percent for the promise that the pot is always full, and it gets there by requiring ID, bank statements and credit checks, which excludes exactly the people who need it most.
+The only thing that has worked at scale so far is not crypto. Money Fellows in Egypt has over eight million users and charges up to 16 percent for the promise that the pot is always full, and it gets there by requiring ID, bank statements and credit checks, which excludes exactly the people who need it most.
 
 Nobody has built the version that digitises groups that already exist, asks for no collateral, keeps members private and costs nothing to use during the pilot, with a fee cap of 1 percent written into the contract for good. That is the gap Zano Circle is built for.
 
